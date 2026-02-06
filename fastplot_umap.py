@@ -5,12 +5,13 @@ import umap
 from scipy.signal.windows import gaussian
 import matplotlib.colors as mcolors
 
-from src.constants import INTERIM_DATA_PATH, PROCESSED_DATA_PATH
+from src.constants import PROCESSED_DATA_PATH
 
+unit_id = '107b'
 # Load data
-hd_spikes       = nap.load_file(PROCESSED_DATA_PATH / "hd_spikes_total.npz")
-hd_angle        = nap.load_file(PROCESSED_DATA_PATH / "angle_openfield.npz")
-active_wake     = nap.load_file(PROCESSED_DATA_PATH / "active_wake.npz")
+hd_spikes       = nap.load_file(PROCESSED_DATA_PATH / unit_id / "hd_spikes_total.npz")
+hd_angle        = nap.load_file(PROCESSED_DATA_PATH / unit_id / "angle_openfield.npz")
+active_wake     = nap.load_file(PROCESSED_DATA_PATH / unit_id / "active_wake.npz")
 
 # wake_embds = np.load(INTERIM_DATA_PATH / "umap_embds_3d.npy")
 # hd_angle = np.load(INTERIM_DATA_PATH / "umap_embds_angle.npy")
@@ -35,7 +36,7 @@ wake_rate = np.sqrt(wake_binned.convolve(kernel))
 umap_args = {
     'n_neighbors': 150,
     'min_dist': 0.1,
-    'metric': 'mahalanobis'
+    'metric': 'euclidean'
 }
 reducer = umap.UMAP(**umap_args, n_components=3)  # 3D
 wake_embds = reducer.fit_transform(wake_rate)
@@ -73,18 +74,6 @@ scatter_2d = fig_gpu[0, 1].add_scatter(
     sizes=4,
     alpha=0.8
 )
-
-def click_handler(ev):
-    if ev.pick_info is not None:
-        idx = ev.pick_info["index"]
-        # Use .values for pynapple Tsd indexing by integer position
-        angle_val = hd_angle.values[idx]
-        print(f"--------------------------------") 
-        print(f"Index: {idx}")
-        print(f"Head Direction: {angle_val:.2f}")
-
-scatter_img.add_event_handler(click_handler, "click")
-scatter_2d.add_event_handler(click_handler, "click")
 
 fig_gpu.show()
 

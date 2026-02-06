@@ -1,8 +1,8 @@
 % All data extracted from Mouse 107b
 % Extracting sleep states into separate arrays
 data_dir = "D:\common_datasets\ucsf\";
-raw_data_dir = data_dir + "raw\116b\";
-processed_data_dir = data_dir + "processed\116b\";
+raw_data_dir = data_dir + "raw\107b\";
+processed_data_dir = data_dir + "processed\107b\";
 
 filename = "YutaTest116b.SleepState.states.mat";
 load(raw_data_dir + filename);
@@ -54,7 +54,9 @@ save(processed_data_dir + "hd_ids", "hd_ids");
 Idx_modCW = metaUnitFeature.Idx_modCW(mouseID & turnModCells & shankID);
 Idx_modCCW = metaUnitFeature.Idx_modCCW(mouseID & turnModCells & shankID);
 id_ccw = (Idx_modCW - Idx_modCCW) < 0;
+mod_idx = [Idx_modCW, Idx_modCW];
 
+save(processed_data_dir + 'mod_idx.mat', 'mod_idx');
 save(processed_data_dir + "id_ccw.mat", 'id_ccw');
 
 % Unit 116b shank info

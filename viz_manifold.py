@@ -4,7 +4,6 @@ import numpy as np
 from pynaviz import scope
 
 from src.constants import RAW_DATA_PATH, PROCESSED_DATA_PATH
-
 unit_id = '116b'
 
 manifold = nap.load_file(PROCESSED_DATA_PATH / unit_id / "manifold_wake_pre_ttx.npz")
