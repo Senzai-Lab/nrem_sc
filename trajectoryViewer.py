@@ -4,10 +4,32 @@ import pygfx as gfx
 from pygfx import Viewport
 from rendercanvas.auto import RenderCanvas, loop
 
+import matplotlib.pyplot as plt
 
-class ManifoldController:
+
+def _extract_xy(data: nap.TsdFrame):
+    """Extract x, y arrays from a TsdFrame as float32."""
+    if 'x' in data.columns and 'y' in data.columns:
+        x = data['x'].values.astype("float32")
+        y = data['y'].values.astype("float32")
+    else:
+        x = data.values[:, 0].astype("float32")
+        y = data.values[:, 1].astype("float32")
+    return x, y
+
+
+def _ensure_rgba(colors: np.ndarray) -> np.ndarray:
+    """Ensure colors are float32 RGBA (N, 4). Adds alpha=1 if RGB."""
+    colors = np.asarray(colors, dtype="float32")
+    if colors.ndim == 2 and colors.shape[1] == 3:
+        alpha = np.ones((len(colors), 1), dtype="float32")
+        colors = np.hstack([colors, alpha])
+    return colors
+
+
+class TrajectoryController:
     """
-    A pynaviz-compatible controller for the ManifoldViewer.
+    A pynaviz-compatible controller for the TrajectoryViewer.
     
     Implements the interface required by pynaviz's ControllerGroup:
     - sync(event): respond to time synchronization events
@@ -16,7 +38,7 @@ class ManifoldController:
     - enabled: whether the controller is active
     """
     
-    def __init__(self, viewer: "ManifoldViewer", renderer, controller_id: int = None):
+    def __init__(self, viewer: "TrajectoryViewer", renderer, controller_id: int = None):
         self.viewer = viewer
         self.renderer = renderer
         self._controller_id = controller_id
@@ -74,7 +96,9 @@ class ManifoldController:
         delta : float
             Time increment in seconds.
         """
-        self._current_time += delta
+        # Read back the viewer's actual time to stay in sync after
+        # keyboard scrubbing or external go_to_time() calls.
+        self._current_time = self.viewer.current_time + delta
         self.viewer.go_to_time(self._current_time)
     
     def go_to(self, target_time: float):
@@ -83,14 +107,14 @@ class ManifoldController:
         self.viewer.go_to_time(target_time)
 
 
-class ManifoldViewer:
+class TrajectoryViewer:
     """
-    A modular 2D manifold viewer using pygfx.
+    A 2D trajectory viewer using pygfx.
     
     The viewer is constructed in steps:
     1. Create viewer with basic settings (canvas, background)
-    2. Add point clouds with add_point_cloud() - can add multiple
-    3. Setup trajectory for animation with setup_trajectory()
+    2. Add scatter layers with add_scatter() - can add multiple
+    3. Add trajectory for animation with add_trajectory()
     4. Call show() to display
     
     Parameters
@@ -106,23 +130,22 @@ class ManifoldViewer:
     
     Examples
     --------
-    >>> viewer = ManifoldViewer(title="NREM vs Wake")
-    >>> viewer.add_point_cloud(wake_data, cmap="coolwarm", opacity=0.2, z_offset=-0.1)
-    >>> viewer.add_point_cloud(nrem_data, cmap="viridis")
-    >>> viewer.setup_trajectory(nrem_data, trail_length=100)
+    >>> viewer = TrajectoryViewer(title="NREM vs Wake")
+    >>> viewer.add_scatter(wake_data, cmap="coolwarm", opacity=0.2, z_offset=-0.1)
+    >>> viewer.add_scatter(nrem_data, cmap="viridis")
+    >>> viewer.add_trajectory(nrem_data, trail_length=100)
     >>> viewer.show()
     """
     
     def __init__(
         self,
         background: str = "#0a0a0a",
-        title: str = "Manifold Viewer",
+        title: str = "Trajectory Viewer",
         show_time_overlay: bool = True,
         size: tuple = (800, 800),
     ):
         self._show_time_overlay = show_time_overlay
-        self._point_clouds = []  # List of added point clouds
-        self._trajectory_data = None  # Data for trajectory animation
+        self._scatters = []  # List of added scatter layers
         self._trajectory_setup = False
         
         # Create canvas and renderer
@@ -144,9 +167,9 @@ class ManifoldViewer:
         self._pan_zoom = gfx.PanZoomController(self.camera, register_events=self.renderer)
         
         # Create pynaviz-compatible controller for synchronization
-        self.controller = ManifoldController(self, self.renderer)
+        self.controller = TrajectoryController(self, self.renderer)
         
-        # Animation state (initialized but not active until setup_trajectory)
+        # Animation state (initialized but not active until add_trajectory)
         self._playing = False
         self._play_speed = 1.0
         self._frame_position = 0.0
@@ -158,7 +181,7 @@ class ManifoldViewer:
         self.canvas.add_event_handler(self._on_key, "key_down")
         self.canvas.request_draw(self._animate)
     
-    def add_point_cloud(
+    def add_scatter(
         self,
         data: nap.TsdFrame,
         colors: np.ndarray = None,
@@ -169,7 +192,7 @@ class ManifoldViewer:
         name: str = None,
     ) -> gfx.Points:
         """
-        Add a point cloud to the scene.
+        Add a scatter layer to the scene.
         
         Parameters
         ----------
@@ -186,27 +209,19 @@ class ManifoldViewer:
         z_offset : float
             Z position offset. Negative values render behind, positive in front.
         name : str, optional
-            Name for this point cloud (for later reference).
+            Name for this scatter layer (for later reference).
         
         Returns
         -------
         gfx.Points
             The created Points object.
         """
-        # Extract coordinates
-        if 'x' in data.columns and 'y' in data.columns:
-            x = data['x'].values.astype("float32")
-            y = data['y'].values.astype("float32")
-        else:
-            x = data.values[:, 0].astype("float32")
-            y = data.values[:, 1].astype("float32")
-        
+        x, y = _extract_xy(data)
         n_points = len(x)
         
         # Setup colors
         if colors is None:
             if cmap is not None:
-                import matplotlib.pyplot as plt
                 cmap_func = plt.get_cmap(cmap)
                 t_norm = np.linspace(0, 1, n_points)
                 point_colors = cmap_func(t_norm)[:, :4].astype("float32")
@@ -214,10 +229,7 @@ class ManifoldViewer:
                 point_colors = np.ones((n_points, 4), dtype="float32")
                 point_colors[:, :3] = 0.8  # Light gray
         else:
-            point_colors = colors.astype("float32")
-            if point_colors.shape[1] == 3:
-                alpha = np.ones((n_points, 1), dtype="float32")
-                point_colors = np.hstack([point_colors, alpha])
+            point_colors = _ensure_rgba(colors)
         
         # Create positions
         positions = np.zeros((n_points, 3), dtype="float32")
@@ -243,16 +255,16 @@ class ManifoldViewer:
             'x': x,
             'y': y,
             'colors': point_colors,
-            'name': name or f"cloud_{len(self._point_clouds)}",
+            'name': name or f"scatter_{len(self._scatters)}",
         }
-        self._point_clouds.append(cloud_info)
+        self._scatters.append(cloud_info)
         
         # Update camera view to fit all data
         self._update_view_bounds()
         
         return points
     
-    def setup_trajectory(
+    def add_trajectory(
         self,
         data: nap.TsdFrame,
         trail_length: int = 100,
@@ -261,7 +273,7 @@ class ManifoldViewer:
         trail_thickness: float = 2.0,
     ):
         """
-        Setup the trajectory animation (time marker and trail).
+        Add the trajectory animation (time marker and trail).
         
         This defines which data the playback animation follows.
         
@@ -273,29 +285,21 @@ class ManifoldViewer:
         trail_length : int
             Number of frames to show in the trail (default 100).
         marker_color : str
-            Color of the time marker.
+            Color of the time marker and trail.
         marker_size : float, optional
-            Size of marker. If None, uses 3x the first point cloud's size.
+            Size of marker. If None, uses 3x the first scatter's size.
         trail_thickness : float
             Thickness of the trail line.
         """
-        # Extract coordinates
-        if 'x' in data.columns and 'y' in data.columns:
-            self._traj_x = data['x'].values.astype("float32")
-            self._traj_y = data['y'].values.astype("float32")
-        else:
-            self._traj_x = data.values[:, 0].astype("float32")
-            self._traj_y = data.values[:, 1].astype("float32")
-        
-        self._trajectory_data = data
+        self._traj_x, self._traj_y = _extract_xy(data)
         self._times = data.times()
-        self._trail_length = trail_length
+        self._trail_length = max(trail_length, 0)
         
         # Determine marker size
         if marker_size is None:
-            if self._point_clouds:
-                # Use 3x the first point cloud's size
-                marker_size = self._point_clouds[0]['points'].material.size * 3
+            if self._scatters:
+                # Use 3x the first scatter's size
+                marker_size = self._scatters[0]['points'].material.size * 3
             else:
                 marker_size = 15.0
         
@@ -307,9 +311,15 @@ class ManifoldViewer:
         )
         self.scene.add(self.time_marker)
         
-        # Create trail
-        trail_pos = np.zeros((trail_length, 3), dtype="float32")
-        trail_colors = np.zeros((trail_length, 4), dtype="float32")
+        # Resolve trail color from marker_color
+        self._trail_color = np.array(
+            gfx.Color(marker_color)[:3], dtype="float32"
+        )
+        
+        # Create trail (allocate at least 2 slots for the interpolated tip)
+        trail_buf_len = max(self._trail_length + 1, 2)
+        trail_pos = np.full((trail_buf_len, 3), np.nan, dtype="float32")
+        trail_colors = np.zeros((trail_buf_len, 4), dtype="float32")
         self.trail = gfx.Line(
             gfx.Geometry(positions=trail_pos, colors=trail_colors),
             gfx.LineMaterial(thickness=trail_thickness, color_mode="vertex"),
@@ -322,13 +332,13 @@ class ManifoldViewer:
         self._update_marker(0)
     
     def _update_view_bounds(self):
-        """Update camera to fit all point clouds."""
-        if not self._point_clouds:
+        """Update camera to fit all scatter layers."""
+        if not self._scatters:
             return
         
         # Collect all x, y coordinates
-        all_x = np.concatenate([pc['x'] for pc in self._point_clouds])
-        all_y = np.concatenate([pc['y'] for pc in self._point_clouds])
+        all_x = np.concatenate([pc['x'] for pc in self._scatters])
+        all_y = np.concatenate([pc['y'] for pc in self._scatters])
         
         margin = 0.1
         x_range = all_x.max() - all_x.min()
@@ -414,8 +424,6 @@ class ManifoldViewer:
         padding : int
             Padding from the edge in pixels.
         """
-        import matplotlib.pyplot as plt
-        
         # Get colormap colors
         cmap_func = plt.get_cmap(cmap)
         colors = cmap_func(np.linspace(0, 1, n_colors))[:, :4].astype("float32")
@@ -594,8 +602,19 @@ class ManifoldViewer:
         
         return float(x), float(y)
     
+    @property
+    def current_time(self) -> float:
+        """Current playback time in seconds (read-only)."""
+        if not self._trajectory_setup:
+            return 0.0
+        idx = self._frame_index
+        if idx < len(self._times) - 1:
+            frac = self._frame_position - idx
+            return float(self._times[idx] + frac * (self._times[idx + 1] - self._times[idx]))
+        return float(self._times[-1])
+    
     def _update_marker(self, frame_position: float):
-        """Update the time marker position with interpolation support."""
+        """Update marker, trail, and overlay for the given frame position."""
         if not self._trajectory_setup:
             return
         
@@ -613,59 +632,50 @@ class ManifoldViewer:
         pos[0, 1] = interp_y
         self.time_marker.geometry.positions.update_full()
         
-        # Update trail only if visible
+        self._update_trail(interp_x, interp_y)
+        self._update_overlay_text()
+    
+    def _update_trail(self, tip_x: float, tip_y: float):
+        """Update the trail line geometry behind the marker."""
         trail_pos = self.trail.geometry.positions.data
         trail_colors = self.trail.geometry.colors.data
         
         if self._trail_visible and self._trail_length > 0:
-            # Trail includes frames up to current frame PLUS the interpolated marker position
-            # This ensures the trail always connects to the marker
-            # Respect _trail_start_frame to allow trail reset
-            effective_start = max(self._trail_start_frame, self._frame_index - self._trail_length + 2)
-            start_idx = max(0, effective_start)
-            end_idx = min(self._frame_index + 1, len(self._traj_x))  # Include current frame
-            trail_len = end_idx - start_idx
+            # Reserve 1 extra slot for the interpolated tip that connects to the marker
+            start = max(
+                self._trail_start_frame,
+                self._frame_index - self._trail_length + 1,
+                0,
+            )
+            end = min(self._frame_index + 1, len(self._traj_x))
+            n = end - start
             
-            if trail_len > 0:
-                trail_pos[:trail_len, 0] = self._traj_x[start_idx:end_idx]
-                trail_pos[:trail_len, 1] = self._traj_y[start_idx:end_idx]
-                trail_pos[:trail_len, 2] = 0.05
+            if n > 0:
+                trail_pos[:n, 0] = self._traj_x[start:end]
+                trail_pos[:n, 1] = self._traj_y[start:end]
+                trail_pos[:n, 2] = 0.05
                 
-                # Add the interpolated position as final point to connect to marker
-                trail_pos[trail_len, 0] = interp_x
-                trail_pos[trail_len, 1] = interp_y
-                trail_pos[trail_len, 2] = 0.05
-                trail_len += 1
+                # Append the interpolated tip so the trail connects to the marker
+                trail_pos[n, :] = [tip_x, tip_y, 0.05]
+                n += 1
                 
-                # Fade trail from transparent to opaque
-                alpha = np.linspace(0.1, 1.0, trail_len)
-                trail_colors[:trail_len, 0] = 1.0  # Red
-                trail_colors[:trail_len, 1] = 0.3
-                trail_colors[:trail_len, 2] = 0.3
-                trail_colors[:trail_len, 3] = alpha
+                # Fade trail: transparent → opaque, using marker color
+                trail_colors[:n, :3] = self._trail_color
+                trail_colors[:n, 3] = np.linspace(0.1, 1.0, n)
             
-            # Hide unused trail points
-            trail_pos[trail_len:] = np.nan
+            trail_pos[n:] = np.nan
         else:
-            # Trail hidden or disabled - set all to nan
             trail_pos[:] = np.nan
         
         self.trail.geometry.positions.update_full()
         self.trail.geometry.colors.update_full()
-        
-        # Update time overlay text with interpolated time
-        if self._show_time_overlay:
-            # Interpolate time to match the interpolated marker position
-            idx = self._frame_index
-            if idx < len(self._times) - 1:
-                frac = self._frame_position - idx
-                t0 = self._times[idx]
-                t1 = self._times[idx + 1]
-                current_time = t0 + frac * (t1 - t0)
-            else:
-                current_time = self._times[-1]
-            self._time_text.set_text(f"t = {current_time:.4f} s")
-            self._frame_text.set_text(f"frame {self._frame_index} / {len(self._traj_x) - 1}")
+    
+    def _update_overlay_text(self):
+        """Update the time / frame overlay text."""
+        if not self._show_time_overlay:
+            return
+        self._time_text.set_text(f"t = {self.current_time:.4f} s")
+        self._frame_text.set_text(f"frame {self._frame_index} / {len(self._traj_x) - 1}")
     
     def go_to_time(self, target_time: float):
         """
@@ -791,36 +801,36 @@ class ManifoldViewer:
         self.renderer.flush()
         self.canvas.request_draw(self._animate)
     
-    def get_point_cloud(self, name_or_index=0):
+    def get_scatter(self, name_or_index=0):
         """
-        Get a point cloud by name or index.
+        Get a scatter layer by name or index.
         
         Parameters
         ----------
         name_or_index : str or int
-            Name of the point cloud or its index in the list.
+            Name of the scatter layer or its index in the list.
         
         Returns
         -------
         dict
-            Point cloud info dict with 'points', 'data', 'x', 'y', 'colors', 'name'.
+            Scatter info dict with 'points', 'data', 'x', 'y', 'colors', 'name'.
         """
         if isinstance(name_or_index, int):
-            return self._point_clouds[name_or_index]
+            return self._scatters[name_or_index]
         else:
-            for pc in self._point_clouds:
+            for pc in self._scatters:
                 if pc['name'] == name_or_index:
                     return pc
-            raise KeyError(f"Point cloud '{name_or_index}' not found")
+            raise KeyError(f"Scatter '{name_or_index}' not found")
     
-    def set_point_cloud_colors(self, name_or_index=0, colors=None, cmap=None, values=None, vmin=None, vmax=None):
+    def set_scatter_colors(self, name_or_index=0, colors=None, cmap=None, values=None, vmin=None, vmax=None):
         """
-        Update colors of an existing point cloud.
+        Update colors of an existing scatter layer.
         
         Parameters
         ----------
         name_or_index : str or int
-            Which point cloud to update.
+            Which scatter layer to update.
         colors : np.ndarray, optional
             Direct RGBA colors (N, 4).
         cmap : str, optional
@@ -830,16 +840,11 @@ class ManifoldViewer:
         vmin, vmax : float, optional
             Value range for colormap normalization.
         """
-        import matplotlib.pyplot as plt
-        
-        pc = self.get_point_cloud(name_or_index)
+        pc = self.get_scatter(name_or_index)
         n_points = len(pc['x'])
         
         if colors is not None:
-            new_colors = colors.astype("float32")
-            if new_colors.shape[1] == 3:
-                alpha = np.ones((n_points, 1), dtype="float32")
-                new_colors = np.hstack([new_colors, alpha])
+            new_colors = _ensure_rgba(colors)
         elif cmap is not None:
             cmap_func = plt.get_cmap(cmap)
             if values is not None:
@@ -863,30 +868,32 @@ class ManifoldViewer:
     def show(self):
         """Display the viewer."""
         print("Controls:")
-        print("  Space: Play/Pause")
-        print("  Arrow Left/Right: Step backward/forward")
-        print("  Arrow Up/Down: Change playback speed (supports slow-motion)")
-        print("  R: Reset view and position")
-        print("  C: Reset trail (forget history, start fresh)")
-        print("  T: Toggle trail visibility")
-        print("  Home/End: Jump to start/end")
         print("  Mouse: Pan and zoom")
+        if self._trajectory_setup:
+            print("  Space: Play/Pause")
+            print("  Arrow Left/Right: Step backward/forward")
+            print("  Arrow Up/Down: Change playback speed (supports slow-motion)")
+            print("  R: Reset view and position")
+            print("  C: Reset trail (forget history, start fresh)")
+            print("  T: Toggle trail visibility")
+            print("  Home/End: Jump to start/end")
         loop.run()
 
 
-def create_manifold_viewer(
+def create_trajectory_viewer(
     manifold: nap.TsdFrame,
     color_by: str = "time",  # "time" or None
     cmap: str = "viridis",
     point_size: float = 4.0,
     trail_length: int = 100,
     show_time_overlay: bool = True,
-) -> ManifoldViewer:
+    **viewer_kwargs,
+) -> TrajectoryViewer:
     """
-    Convenience function to create a manifold viewer with a single dataset.
+    Convenience function to create a trajectory viewer with a single dataset.
     
-    For more complex setups (multiple point clouds, background data), use
-    ManifoldViewer directly with add_point_cloud() and setup_trajectory().
+    For more complex setups (multiple scatters, background data), use
+    TrajectoryViewer directly with add_scatter() and add_trajectory().
     
     Parameters
     ----------
@@ -904,45 +911,51 @@ def create_manifold_viewer(
         Set to 0 to disable trail. Smaller = faster fade.
     show_time_overlay : bool
         Whether to show the time/frame overlay text (default True).
+    **viewer_kwargs
+        Extra keyword arguments forwarded to TrajectoryViewer
+        (e.g., title, size, background).
     
     Returns
     -------
-    ManifoldViewer
+    TrajectoryViewer
         The viewer instance.
     
     Examples
     --------
     >>> # Simple usage
-    >>> viewer = create_manifold_viewer(nrem_data, color_by="time")
+    >>> viewer = create_trajectory_viewer(nrem_data, color_by="time")
     >>> viewer.show()
     
     >>> # With background data (modular API)
-    >>> viewer = ManifoldViewer(title="NREM vs Wake")
-    >>> viewer.add_point_cloud(wake_data, cmap="coolwarm", opacity=0.2, z_offset=-0.1)
-    >>> viewer.add_point_cloud(nrem_data, cmap="viridis", name="nrem")
-    >>> viewer.setup_trajectory(nrem_data, trail_length=100)
+    >>> viewer = TrajectoryViewer(title="NREM vs Wake")
+    >>> viewer.add_scatter(wake_data, cmap="coolwarm", opacity=0.2, z_offset=-0.1)
+    >>> viewer.add_scatter(nrem_data, cmap="viridis", name="nrem")
+    >>> viewer.add_trajectory(nrem_data, trail_length=100)
     >>> viewer.show()
     """
-    # Create viewer with basic settings
-    viewer = ManifoldViewer(
+    viewer = TrajectoryViewer(
         show_time_overlay=show_time_overlay,
+        **viewer_kwargs,
     )
     
-    # Determine colormap
     use_cmap = cmap if color_by == "time" else None
     
-    # Add the point cloud
-    viewer.add_point_cloud(
+    viewer.add_scatter(
         manifold,
         cmap=use_cmap,
         point_size=point_size,
         name="main",
     )
     
-    # Setup trajectory for animation
-    viewer.setup_trajectory(manifold, trail_length=trail_length)
+    viewer.add_trajectory(manifold, trail_length=trail_length)
     
     return viewer
+
+
+# Backward-compatible aliases
+ManifoldViewer = TrajectoryViewer
+ManifoldController = TrajectoryController
+create_manifold_viewer = create_trajectory_viewer
 
 
 # === MAIN ===
@@ -970,32 +983,32 @@ if __name__ == "__main__":
     print(f"Loaded manifold: {len(manifold_openfield)} points")
     print(f"Loaded manifold: {len(manifold_shifted)} points")
 
-    viewer = ManifoldViewer()
+    viewer = TrajectoryViewer()
 
-    # Add the point cloud
-    viewer.add_point_cloud(
+    # Add scatter layers
+    viewer.add_scatter(
         data=manifold_openfield,
         colors=colors_rgba,
         point_size=2,
         name="wake")
     
-    viewer.add_point_cloud(
+    viewer.add_scatter(
         data=manifold_shifted,
         point_size=1,
         opacity=0.1,
         name="nrem")
     
-    # Setup trajectory for animation
-    viewer.setup_trajectory(manifold_shifted, trail_length=25)
+    # Add trajectory for animation
+    viewer.add_trajectory(manifold_shifted, trail_length=25)
     viewer.show()
     
     # === MODULAR USAGE EXAMPLE ===
-    # For multiple point clouds (e.g., NREM + wake):
+    # For multiple scatters (e.g., NREM + wake):
     #
-    # viewer = ManifoldViewer(title="NREM vs Wake")
-    # viewer.add_point_cloud(wake_data, cmap="coolwarm", opacity=0.2, z_offset=-0.1, name="wake")
-    # viewer.add_point_cloud(nrem_data, cmap="viridis", name="nrem")
-    # viewer.setup_trajectory(nrem_data, trail_length=100)
+    # viewer = TrajectoryViewer(title="NREM vs Wake")
+    # viewer.add_scatter(wake_data, cmap="coolwarm", opacity=0.2, z_offset=-0.1, name="wake")
+    # viewer.add_scatter(nrem_data, cmap="viridis", name="nrem")
+    # viewer.add_trajectory(nrem_data, trail_length=100)
     # viewer.show()
     
     # === PYNAVIZ INTEGRATION EXAMPLE ===
@@ -1007,8 +1020,8 @@ if __name__ == "__main__":
     # # Create pynaviz plots
     # spike_widget = viz.TsGroupWidget(hd_spikes_shifted)
     # 
-    # # Create manifold viewer
-    # manifold_viewer = create_manifold_viewer(manifold_shifted)
+    # # Create trajectory viewer
+    # viewer = create_trajectory_viewer(manifold_shifted)
     # 
     # # Create a ControllerGroup to synchronize them
     # cg = ControllerGroup(
@@ -1016,9 +1029,9 @@ if __name__ == "__main__":
     #     interval=(0, manifold_shifted.times()[-1])
     # )
     # 
-    # # Add the manifold viewer to the group
-    # cg.add(manifold_viewer, controller_id=1)
+    # # Add the trajectory viewer to the group
+    # cg.add(viewer, controller_id=1)
     # 
     # # Show widgets
     # spike_widget.show()
-    # manifold_viewer.show()
+    # viewer.show()

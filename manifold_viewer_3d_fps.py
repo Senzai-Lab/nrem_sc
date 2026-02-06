@@ -2,6 +2,34 @@ import numpy as np
 import pynapple as nap
 import pygfx as gfx
 from rendercanvas.auto import RenderCanvas, loop
+import matplotlib.pyplot as plt
+
+
+def _extract_xyz(data: nap.TsdFrame):
+    """Extract x, y, z arrays from a TsdFrame as float32."""
+    if 'x' in data.columns and 'y' in data.columns and 'z' in data.columns:
+        x = data['x'].values.astype("float32")
+        y = data['y'].values.astype("float32")
+        z = data['z'].values.astype("float32")
+    elif data.values.shape[1] >= 3:
+        x = data.values[:, 0].astype("float32")
+        y = data.values[:, 1].astype("float32")
+        z = data.values[:, 2].astype("float32")
+    else:
+        # Fallback to 2D with z=0
+        x = data.values[:, 0].astype("float32")
+        y = data.values[:, 1].astype("float32")
+        z = np.zeros_like(x)
+    return x, y, z
+
+
+def _ensure_rgba(colors: np.ndarray) -> np.ndarray:
+    """Ensure colors are float32 RGBA (N, 4). Adds alpha=1 if RGB."""
+    colors = np.asarray(colors, dtype="float32")
+    if colors.ndim == 2 and colors.shape[1] == 3:
+        alpha = np.ones((len(colors), 1), dtype="float32")
+        colors = np.hstack([colors, alpha])
+    return colors
 
 
 class FirstPersonController:
@@ -194,14 +222,14 @@ class FirstPersonController:
         self._update_camera_rotation()
 
 
-class ManifoldViewer3D:
+class TrajectoryViewer3D:
     """
-    A 3D manifold viewer with first-person controls using pygfx.
+    A 3D trajectory viewer with first-person controls using pygfx.
     
     The viewer is constructed in steps:
     1. Create viewer with basic settings (canvas, background)
-    2. Add point clouds with add_point_cloud() - can add multiple
-    3. Setup trajectory for animation with setup_trajectory()
+    2. Add scatter layers with add_scatter() - can add multiple
+    3. Add trajectory for animation with add_trajectory()
     4. Call show() to display
     
     Parameters
@@ -216,25 +244,18 @@ class ManifoldViewer3D:
         Canvas size in pixels (width, height).
     fov : float
         Field of view for perspective camera (degrees).
-    
-    Examples
-    --------
-    >>> viewer = ManifoldViewer3D(title="3D UMAP")
-    >>> viewer.add_point_cloud(umap_data, cmap="viridis")
-    >>> viewer.setup_trajectory(umap_data, trail_length=100)
-    >>> viewer.show()
     """
     
     def __init__(
         self,
         background: str = "#0a0a0a",
-        title: str = "3D Manifold Viewer",
+        title: str = "3D Trajectory Viewer",
         show_time_overlay: bool = True,
         size: tuple = (1024, 768),
         fov: float = 60,
     ):
         self._show_time_overlay = show_time_overlay
-        self._point_clouds = []
+        self._scatters = []
         self._trajectory_data = None
         self._trajectory_setup = False
         
@@ -278,7 +299,7 @@ class ManifoldViewer3D:
         self.canvas.add_event_handler(self._on_key, "key_down")
         self.canvas.request_draw(self._animate)
     
-    def add_point_cloud(
+    def add_scatter(
         self,
         data: nap.TsdFrame,
         colors: np.ndarray = None,
@@ -288,7 +309,7 @@ class ManifoldViewer3D:
         name: str = None,
     ) -> gfx.Points:
         """
-        Add a 3D point cloud to the scene.
+        Add a 3D scatter layer to the scene.
         
         Parameters
         ----------
@@ -303,34 +324,19 @@ class ManifoldViewer3D:
         opacity : float
             Opacity of points (0-1).
         name : str, optional
-            Name for this point cloud.
+            Name for this scatter object.
         
         Returns
         -------
         gfx.Points
             The created Points object.
         """
-        # Extract 3D coordinates
-        if 'x' in data.columns and 'y' in data.columns and 'z' in data.columns:
-            x = data['x'].values.astype("float32")
-            y = data['y'].values.astype("float32")
-            z = data['z'].values.astype("float32")
-        elif data.values.shape[1] >= 3:
-            x = data.values[:, 0].astype("float32")
-            y = data.values[:, 1].astype("float32")
-            z = data.values[:, 2].astype("float32")
-        else:
-            # Fallback to 2D with z=0
-            x = data.values[:, 0].astype("float32")
-            y = data.values[:, 1].astype("float32")
-            z = np.zeros_like(x)
-        
+        x, y, z = _extract_xyz(data)
         n_points = len(x)
         
         # Setup colors
         if colors is None:
             if cmap is not None:
-                import matplotlib.pyplot as plt
                 cmap_func = plt.get_cmap(cmap)
                 t_norm = np.linspace(0, 1, n_points)
                 point_colors = cmap_func(t_norm)[:, :4].astype("float32")
@@ -338,10 +344,7 @@ class ManifoldViewer3D:
                 point_colors = np.ones((n_points, 4), dtype="float32")
                 point_colors[:, :3] = 0.8
         else:
-            point_colors = colors.astype("float32")
-            if point_colors.shape[1] == 3:
-                alpha = np.ones((n_points, 1), dtype="float32")
-                point_colors = np.hstack([point_colors, alpha])
+            point_colors = _ensure_rgba(colors)
         
         # Apply opacity
         point_colors[:, 3] *= opacity
@@ -360,23 +363,23 @@ class ManifoldViewer3D:
         self.scene.add(points)
         
         # Store reference
-        cloud_info = {
+        scatter_info = {
             'points': points,
             'data': data,
             'x': x,
             'y': y,
             'z': z,
             'colors': point_colors,
-            'name': name or f"cloud_{len(self._point_clouds)}",
+            'name': name or f"scatter_{len(self._scatters)}",
         }
-        self._point_clouds.append(cloud_info)
+        self._scatters.append(scatter_info)
         
         # Update camera view to fit data
         self._update_view_bounds()
         
         return points
     
-    def setup_trajectory(
+    def add_trajectory(
         self,
         data: nap.TsdFrame,
         trail_length: int = 100,
@@ -385,7 +388,7 @@ class ManifoldViewer3D:
         trail_thickness: float = 3.0,
     ):
         """
-        Setup the trajectory animation (time marker and trail).
+        Add the trajectory animation (time marker and trail).
         
         Parameters
         ----------
@@ -396,32 +399,21 @@ class ManifoldViewer3D:
         marker_color : str
             Color of the time marker.
         marker_size : float, optional
-            Size of marker. If None, uses 3x the first point cloud's size.
+            Size of marker. If None, uses 3x the first scatter's size.
         trail_thickness : float
             Thickness of the trail line.
         """
-        # Extract 3D coordinates
-        if 'x' in data.columns and 'y' in data.columns and 'z' in data.columns:
-            self._traj_x = data['x'].values.astype("float32")
-            self._traj_y = data['y'].values.astype("float32")
-            self._traj_z = data['z'].values.astype("float32")
-        elif data.values.shape[1] >= 3:
-            self._traj_x = data.values[:, 0].astype("float32")
-            self._traj_y = data.values[:, 1].astype("float32")
-            self._traj_z = data.values[:, 2].astype("float32")
-        else:
-            self._traj_x = data.values[:, 0].astype("float32")
-            self._traj_y = data.values[:, 1].astype("float32")
-            self._traj_z = np.zeros_like(self._traj_x)
+        self._traj_x, self._traj_y, self._traj_z = _extract_xyz(data)
         
         self._trajectory_data = data
         self._times = data.times()
         self._trail_length = trail_length
+        self._marker_color = gfx.Color(marker_color) # Store for trail
         
         # Determine marker size
         if marker_size is None:
-            if self._point_clouds:
-                marker_size = self._point_clouds[0]['points'].material.size * 3
+            if self._scatters:
+                marker_size = self._scatters[0]['points'].material.size * 3
             else:
                 marker_size = 15.0
         
@@ -447,13 +439,13 @@ class ManifoldViewer3D:
     
     def _update_view_bounds(self):
         """Position camera to view all point clouds."""
-        if not self._point_clouds:
+        if not self._scatters:
             return
         
         # Collect all coordinates
-        all_x = np.concatenate([pc['x'] for pc in self._point_clouds])
-        all_y = np.concatenate([pc['y'] for pc in self._point_clouds])
-        all_z = np.concatenate([pc['z'] for pc in self._point_clouds])
+        all_x = np.concatenate([pc['x'] for pc in self._scatters])
+        all_y = np.concatenate([pc['y'] for pc in self._scatters])
+        all_z = np.concatenate([pc['z'] for pc in self._scatters])
         
         # Calculate center and extent
         center = np.array([all_x.mean(), all_y.mean(), all_z.mean()])
@@ -582,10 +574,13 @@ class ManifoldViewer3D:
                 
                 # Fade trail
                 alpha = np.linspace(0.1, 1.0, trail_len)
-                trail_colors[:trail_len, 0] = 1.0
-                trail_colors[:trail_len, 1] = 0.3
-                trail_colors[:trail_len, 2] = 0.3
-                trail_colors[:trail_len, 3] = alpha
+                
+                # Use marker color for trail
+                r, g, b, a = self._marker_color
+                trail_colors[:trail_len, 0] = r
+                trail_colors[:trail_len, 1] = g
+                trail_colors[:trail_len, 2] = b
+                trail_colors[:trail_len, 3] = alpha * a
             
             trail_pos[trail_len:] = np.nan
         else:
@@ -806,19 +801,19 @@ class ManifoldViewer3D:
         self.renderer.flush()
         self.canvas.request_draw(self._animate)
     
-    def get_point_cloud(self, name_or_index=0):
-        """Get a point cloud by name or index."""
+    def get_scatter(self, name_or_index=0):
+        """Get a scatter object by name or index."""
         if isinstance(name_or_index, int):
-            return self._point_clouds[name_or_index]
-        for pc in self._point_clouds:
+            return self._scatters[name_or_index]
+        for pc in self._scatters:
             if pc['name'] == name_or_index:
                 return pc
-        raise KeyError(f"Point cloud '{name_or_index}' not found")
+        raise KeyError(f"Scatter '{name_or_index}' not found")
     
     def show(self):
         """Display the viewer."""
         print("=" * 60)
-        print("3D Manifold Viewer Controls:")
+        print("3D Trajectory Viewer Controls:")
         print("=" * 60)
         print("  WASD: Move forward/left/backward/right")
         print("  Z/X: Move up/down")
@@ -839,16 +834,16 @@ class ManifoldViewer3D:
         loop.run()
 
 
-def create_manifold_viewer_3d(
+def create_trajectory_viewer_3d(
     manifold: nap.TsdFrame,
     color_by: str = "time",
     cmap: str = "viridis",
     point_size: float = 4.0,
     trail_length: int = 100,
     show_time_overlay: bool = True,
-) -> ManifoldViewer3D:
+) -> TrajectoryViewer3D:
     """
-    Convenience function to create a 3D manifold viewer with a single dataset.
+    Convenience function to create a 3D trajectory viewer with a single dataset.
     
     Parameters
     ----------
@@ -867,21 +862,21 @@ def create_manifold_viewer_3d(
     
     Returns
     -------
-    ManifoldViewer3D
+    TrajectoryViewer3D
         The viewer instance.
     """
-    viewer = ManifoldViewer3D(show_time_overlay=show_time_overlay)
+    viewer = TrajectoryViewer3D(show_time_overlay=show_time_overlay)
     
     use_cmap = cmap if color_by == "time" else None
     
-    viewer.add_point_cloud(
+    viewer.add_scatter(
         manifold,
         cmap=use_cmap,
         point_size=point_size,
         name="main",
     )
     
-    viewer.setup_trajectory(manifold, trail_length=trail_length)
+    viewer.add_trajectory(manifold, trail_length=trail_length)
     
     return viewer
 
@@ -894,38 +889,56 @@ if __name__ == "__main__":
     unit_id = "116b"
     data_dir = INTERIM_DATA_PATH / unit_id / "tmp"
     
-    # Load data
-    manifold_shifted = nap.load_file(data_dir / "manifold_3d_shifted.npz")
-    manifold_openfield = nap.load_file(PROCESSED_DATA_PATH / unit_id / "manifold_3d_openfield2.npz")
-    hd_angle_openfield = nap.load_file(PROCESSED_DATA_PATH / unit_id / "angle_openfield2.npz").to_numpy()
-    
-    # HD angle to RGBA colors
-    # Normalize
-    hsv_colors = np.ones((len(hd_angle_openfield), 3))
-    hsv_colors[:, 0] = hd_angle_openfield / 360.0
+    try:
+        # Load data
+        manifold_shifted = nap.load_file(data_dir / "manifold_3d_shifted.npz")
+        manifold_openfield = nap.load_file(PROCESSED_DATA_PATH / unit_id / "manifold_3d_openfield2.npz")
+        hd_angle_openfield = nap.load_file(PROCESSED_DATA_PATH / unit_id / "angle_openfield2.npz").to_numpy()
+        
+        # HD angle to RGBA colors
+        # Normalize
+        hsv_colors = np.ones((len(hd_angle_openfield), 3))
+        hsv_colors[:, 0] = hd_angle_openfield / 360.0
 
-    # HSV to RGBA
-    rgb_colors = mcolors.hsv_to_rgb(hsv_colors)
-    colors_rgba = np.column_stack((rgb_colors, np.ones(len(rgb_colors))))
-    
-    print(f"Loaded manifold: {len(manifold_openfield)} points")
-    print(f"Loaded manifold: {len(manifold_shifted)} points")
+        # HSV to RGBA
+        rgb_colors = mcolors.hsv_to_rgb(hsv_colors)
+        colors_rgba = np.column_stack((rgb_colors, np.ones(len(rgb_colors))))
+        
+        print(f"Loaded manifold: {len(manifold_openfield)} points")
+        print(f"Loaded manifold: {len(manifold_shifted)} points")
 
-    viewer = ManifoldViewer3D()
+        viewer = TrajectoryViewer3D()
 
-    # Add the point cloud
-    viewer.add_point_cloud(
-        data=manifold_openfield,
-        colors=colors_rgba,
-        point_size=2,
-        name="wake")
-    
-    viewer.add_point_cloud(
-        data=manifold_shifted,
-        point_size=1,
-        opacity=0.1,
-        name="nrem")
-    
-    # Setup trajectory for animation
-    viewer.setup_trajectory(manifold_shifted, trail_length=25)
-    viewer.show()
+        # Add the scatter
+        viewer.add_scatter(
+            data=manifold_openfield,
+            colors=colors_rgba,
+            point_size=2,
+            name="wake")
+        
+        viewer.add_scatter(
+            data=manifold_shifted,
+            point_size=1,
+            opacity=0.1,
+            name="nrem")
+        
+        # Setup trajectory for animation
+        viewer.add_trajectory(manifold_shifted, trail_length=25)
+        viewer.show()
+    except Exception as e:
+        print(f"Example data not found or error loading: {e}")
+        # Run fallback demo
+        print("Running fallback demo with synthetic data...")
+        
+        # Create spiral data
+        t = np.linspace(0, 20, 1000)
+        x = np.sin(t) * t / 5
+        y = np.cos(t) * t / 5
+        z = t / 5
+        
+        data = nap.TsdFrame(t=t, d=np.column_stack([x, y, z]), columns=['x', 'y', 'z'])
+        
+        viewer = TrajectoryViewer3D(title="Synthetic Demo")
+        viewer.add_scatter(data, cmap="viridis", point_size=5)
+        viewer.add_trajectory(data, trail_length=50)
+        viewer.show()

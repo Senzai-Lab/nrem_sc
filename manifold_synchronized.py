@@ -1,7 +1,7 @@
 """
 Example: Synchronized manifold viewer with pynaviz spike raster and sleep states.
 
-This demonstrates how to use ManifoldViewer with pynaviz's ControllerGroup
+This demonstrates how to use TrajectoryViewer with pynaviz's ControllerGroup
 for synchronized time navigation across multiple plots.
 """
 
@@ -9,9 +9,8 @@ import pynapple as nap
 import pynaviz as viz
 from pynaviz.controller_group import ControllerGroup
 
-import manifold_viewer
 from src.constants import INTERIM_DATA_PATH, PROCESSED_DATA_PATH
-from manifold_viewer import ManifoldViewer
+from trajectoryViewer import TrajectoryViewer
 import numpy as np
 import seaborn as sns
 from matplotlib.colors import ListedColormap
@@ -62,17 +61,17 @@ sleep_plot.color_by(metadata_name='state', cmap_name='Set2')
 decoded_hd_plot = viz.PlotTsd(np.unwrap(decoded_hd), index=2)
 
 # Manifold viewer
-viewer = ManifoldViewer()
+viewer = TrajectoryViewer()
 
 
-# Add the point cloud
-viewer.add_point_cloud(
+# Add scatter layers
+viewer.add_scatter(
     data=manifold_openfield,
     colors=colors_rgba,
     point_size=2,
     name="wake")
 
-viewer.add_point_cloud(
+viewer.add_scatter(
     data=manifold_shifted,
     point_size=1,
     opacity=0.1,
@@ -83,8 +82,8 @@ viewer.add_colorbar(cmap="husl", label="HD (Deg)", vmin=0, vmax=360,
                     position="bottom", width=150, height=15, padding=30)
 
 
-# Setup trajectory for animation
-viewer.setup_trajectory(manifold_shifted, trail_length=25)
+# Add trajectory for animation
+viewer.add_trajectory(manifold_shifted, trail_length=25)
 
 # === SYNCHRONIZE WITH CONTROLLERGROUP ===
 # Create a ControllerGroup to synchronize time across all plots

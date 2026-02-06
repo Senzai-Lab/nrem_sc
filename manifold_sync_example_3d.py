@@ -3,9 +3,9 @@ import pynaviz as viz
 from pynaviz.controller_group import ControllerGroup
 
 # Import the 3D viewer
-from manifold_viewer_3d_fps import ManifoldViewer3D
+from manifold_viewer_3d_fps import TrajectoryViewer3D
 # Import the controller from the 2D viewer file (reusable sync logic)
-from manifold_viewer import ManifoldController
+from trajectoryViewer import TrajectoryController
 
 from src.constants import INTERIM_DATA_PATH, PROCESSED_DATA_PATH
 import numpy as np
@@ -48,27 +48,27 @@ sleep_plot = viz.PlotIntervalSet(sleep_states_shifted, index=1)
 sleep_plot.color_by(metadata_name='state', cmap_name='Set2')
 
 # Manifold viewer 3D
-viewer = ManifoldViewer3D(title="3D Manifold Viewer Sync")
+viewer = TrajectoryViewer3D(title="3D Manifold Viewer Sync")
 
 # Attach controller for synchronization (pynaviz needs .controller property)
-viewer.controller = ManifoldController(viewer, viewer.renderer)
+viewer.controller = TrajectoryController(viewer, viewer.renderer)
 
-# Add the point cloud
-viewer.add_point_cloud(
+# Add scatter layers
+viewer.add_scatter(
     data=manifold_openfield,
     colors=colors_rgba,
     point_size=3,
     name="wake")
 
-viewer.add_point_cloud(
+viewer.add_scatter(
     data=manifold_shifted,
     cmap=None,
     point_size=2,
     opacity=0.1,
     name="nrem")
 
-# Setup trajectory for animation
-viewer.setup_trajectory(manifold_shifted, trail_length=25)
+# Add trajectory for animation
+viewer.add_trajectory(manifold_shifted, trail_length=25)
 
 # === SYNCHRONIZE WITH CONTROLLERGROUP ===
 # Create a ControllerGroup to synchronize time across all plots
