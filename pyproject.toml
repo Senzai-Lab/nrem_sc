@@ -19,4 +19,6 @@ dependencies = [
     "cmap>=0.7.1",
     "pygfx>=0.15.3",
     "pandas>=2.3.3",
+    "replay-trajectory-classification>=1.4.1",
+    "cupy-cuda12x>=13.6.0",
 ]
