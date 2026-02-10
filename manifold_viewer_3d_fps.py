@@ -1,7 +1,7 @@
 import numpy as np
 import pynapple as nap
 import pygfx as gfx
-from rendercanvas.auto import RenderCanvas, loop
+from rendercanvas.glfw import RenderCanvas, loop
 import matplotlib.pyplot as plt
 
 
@@ -879,66 +879,3 @@ def create_trajectory_viewer_3d(
     viewer.add_trajectory(manifold, trail_length=trail_length)
     
     return viewer
-
-
-# === MAIN EXAMPLE ===
-if __name__ == "__main__":
-    from src.constants import INTERIM_DATA_PATH, PROCESSED_DATA_PATH
-    import matplotlib.colors as mcolors
-
-    unit_id = "116b"
-    data_dir = INTERIM_DATA_PATH / unit_id / "tmp"
-    
-    try:
-        # Load data
-        manifold_shifted = nap.load_file(data_dir / "manifold_3d_shifted.npz")
-        manifold_openfield = nap.load_file(PROCESSED_DATA_PATH / unit_id / "manifold_3d_openfield2.npz")
-        hd_angle_openfield = nap.load_file(PROCESSED_DATA_PATH / unit_id / "angle_openfield2.npz").to_numpy()
-        
-        # HD angle to RGBA colors
-        # Normalize
-        hsv_colors = np.ones((len(hd_angle_openfield), 3))
-        hsv_colors[:, 0] = hd_angle_openfield / 360.0
-
-        # HSV to RGBA
-        rgb_colors = mcolors.hsv_to_rgb(hsv_colors)
-        colors_rgba = np.column_stack((rgb_colors, np.ones(len(rgb_colors))))
-        
-        print(f"Loaded manifold: {len(manifold_openfield)} points")
-        print(f"Loaded manifold: {len(manifold_shifted)} points")
-
-        viewer = TrajectoryViewer3D()
-
-        # Add the scatter
-        viewer.add_scatter(
-            data=manifold_openfield,
-            colors=colors_rgba,
-            point_size=2,
-            name="wake")
-        
-        viewer.add_scatter(
-            data=manifold_shifted,
-            point_size=1,
-            opacity=0.1,
-            name="nrem")
-        
-        # Setup trajectory for animation
-        viewer.add_trajectory(manifold_shifted, trail_length=25)
-        viewer.show()
-    except Exception as e:
-        print(f"Example data not found or error loading: {e}")
-        # Run fallback demo
-        print("Running fallback demo with synthetic data...")
-        
-        # Create spiral data
-        t = np.linspace(0, 20, 1000)
-        x = np.sin(t) * t / 5
-        y = np.cos(t) * t / 5
-        z = t / 5
-        
-        data = nap.TsdFrame(t=t, d=np.column_stack([x, y, z]), columns=['x', 'y', 'z'])
-        
-        viewer = TrajectoryViewer3D(title="Synthetic Demo")
-        viewer.add_scatter(data, cmap="viridis", point_size=5)
-        viewer.add_trajectory(data, trail_length=50)
-        viewer.show()
