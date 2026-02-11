@@ -27,15 +27,15 @@ from src.trail import Trail
 
 # Load data
 # fname = '/Volumes/fsmresfiles/Basic_Sciences/Phys/SenzaiLab/Tuguldur/points_3d.csv'
-fname = r"R:\Basic_Sciences\Phys\SenzaiLab\Tuguldur\points_3d.csv"
+fname = r"R:\Basic_Sciences\Phys\SenzaiLab\Tuguldur\260209.csv"
 data = pd.read_csv(fname, skiprows=7)
 t = data['Time (Seconds)'].to_numpy()
 xyz = data[['X.1', 'Y.1', 'Z.1']].to_numpy()
-center = (xyz.min(axis=0) + xyz.max(axis=0)) / 2
-xyz = xyz - center
+# center = (xyz.min(axis=0) + xyz.max(axis=0)) / 2
+# xyz = xyz - center
 
 # Swap Y <-> Z (pygfx expects y-up)
-xyz = xyz[:, [0, 2, 1]]
+# xyz = xyz[:, [0, 2, 1]]
 
 
 canvas = RenderCanvas(max_fps=60, title="Trail 3D - Multi-trajectory")
@@ -44,25 +44,12 @@ scene = gfx.Scene()
 scene.add(gfx.Background.from_color("#141414"))
 scene.add(gfx.AmbientLight(intensity=1.0))
 
-# axes = gfx.AxesHelper(size=30, thickness=4)
-# scene.add(axes)
-
-grid = gfx.Grid(
-    None,
-    gfx.GridMaterial(
-        major_step=100, minor_step=10,
-        thickness_space="world",
-        major_thickness=0.5, minor_thickness=0.1,
-        infinite=True,
-    ),
-    orientation="xz",
-)
-grid.local.y = xyz.min(axis=0)[1]
-scene.add(grid)
-
 # Cylinder
-cage_radius = np.max(np.abs(xyz[:, [0, 2]])) * 1.02  # XZ radius + 2% margin
-cage_height = np.ptp(xyz[:, 1]) * 1.1                 # Y extent + 10% margin
+cylinder_center = (21.292528393641192, -5.464206080862482, 23.629275777896162)
+cage_height = 2.068528092539011e+03
+cage_radius = 1.152850207254279e+03
+# cage_radius = np.max(np.abs(xyz[:, [0, 2]])) * 1.02  # XZ radius + 2% margin
+# cage_height = np.ptp(xyz[:, 1]) * 1.1                 # Y extent + 10% margin
 
 cylinder_geo = gfx.cylinder_geometry(
     radius_bottom=cage_radius,
@@ -76,10 +63,32 @@ cylinder_mesh = gfx.Mesh(
     cylinder_geo,
     gfx.MeshBasicMaterial(color="#378A8FEB", side="both"),
 )
-cylinder_mesh.local.euler_x = np.pi / 2
-cylinder_mesh.local.y = xyz[:, 1].mean()
+
+cylinder_mesh.local.position = cylinder_center
+cylinder_mesh.local.euler_x = -np.pi / 2
 scene.add(cylinder_mesh)
 
+# axes helper
+axes = gfx.AxesHelper(size=30, thickness=2)
+axes.local.position = cylinder_center
+scene.add(axes)
+
+
+# Grid
+grid = gfx.Grid(
+    None,
+    gfx.GridMaterial(
+        major_step=100, minor_step=10,
+        thickness_space="world",
+        major_thickness=0.5, minor_thickness=0.1,
+        infinite=True,
+    ),
+    orientation="xz",
+)
+grid.local.y = cylinder_center[1]
+scene.add(grid)
+
+# Trail
 trail = Trail(
     xyz, scene,
     trail_len=400,
