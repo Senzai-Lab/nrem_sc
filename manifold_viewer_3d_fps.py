@@ -865,8 +865,9 @@ def create_trajectory_viewer_3d(
     TrajectoryViewer3D
         The viewer instance.
     """
+
     viewer = TrajectoryViewer3D(show_time_overlay=show_time_overlay)
-    
+
     use_cmap = cmap if color_by == "time" else None
     
     viewer.add_scatter(

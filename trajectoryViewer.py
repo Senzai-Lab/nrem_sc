@@ -6,7 +6,6 @@ from rendercanvas.auto import RenderCanvas, loop
 
 import matplotlib.pyplot as plt
 
-
 def _extract_xy(data: nap.TsdFrame):
     """Extract x, y arrays from a TsdFrame as float32."""
     if 'x' in data.columns and 'y' in data.columns:
@@ -952,12 +951,6 @@ def create_trajectory_viewer(
     return viewer
 
 
-# Backward-compatible aliases
-ManifoldViewer = TrajectoryViewer
-ManifoldController = TrajectoryController
-create_manifold_viewer = create_trajectory_viewer
-
-
 # === MAIN ===
 if __name__ == "__main__":
     from src.constants import INTERIM_DATA_PATH, PROCESSED_DATA_PATH
@@ -1001,37 +994,3 @@ if __name__ == "__main__":
     # Add trajectory for animation
     viewer.add_trajectory(manifold_shifted, trail_length=25)
     viewer.show()
-    
-    # === MODULAR USAGE EXAMPLE ===
-    # For multiple scatters (e.g., NREM + wake):
-    #
-    # viewer = TrajectoryViewer(title="NREM vs Wake")
-    # viewer.add_scatter(wake_data, cmap="coolwarm", opacity=0.2, z_offset=-0.1, name="wake")
-    # viewer.add_scatter(nrem_data, cmap="viridis", name="nrem")
-    # viewer.add_trajectory(nrem_data, trail_length=100)
-    # viewer.show()
-    
-    # === PYNAVIZ INTEGRATION EXAMPLE ===
-    # To synchronize with other pynaviz plots:
-    #
-    # import pynaviz as viz
-    # from pynaviz import ControllerGroup
-    # 
-    # # Create pynaviz plots
-    # spike_widget = viz.TsGroupWidget(hd_spikes_shifted)
-    # 
-    # # Create trajectory viewer
-    # viewer = create_trajectory_viewer(manifold_shifted)
-    # 
-    # # Create a ControllerGroup to synchronize them
-    # cg = ControllerGroup(
-    #     plots=[spike_widget],
-    #     interval=(0, manifold_shifted.times()[-1])
-    # )
-    # 
-    # # Add the trajectory viewer to the group
-    # cg.add(viewer, controller_id=1)
-    # 
-    # # Show widgets
-    # spike_widget.show()
-    # viewer.show()

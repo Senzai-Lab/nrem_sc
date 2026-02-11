@@ -49,6 +49,8 @@ sleep_plot.color_by(metadata_name='state', cmap_name='Set2')
 
 # Manifold viewer 3D
 viewer = TrajectoryViewer3D(title="3D Manifold Viewer Sync")
+from pygfx.renderers.wgpu.engine.edl import EDLPass
+viewer.renderer.effect_passes = [EDLPass(strength=5.0, radius=1.5, depth_edge_threshold=0.0)]
 
 # Attach controller for synchronization (pynaviz needs .controller property)
 viewer.controller = TrajectoryController(viewer, viewer.renderer)
