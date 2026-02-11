@@ -65,7 +65,7 @@ grid = gfx.Grid(
     ),
     orientation="xz",
 )
-grid.local.y = -120
+grid.local.y = positions[0, 1]
 scene.add(grid)
 
 # ---------------------------------------------------------------------------
@@ -73,17 +73,20 @@ scene.add(grid)
 # ---------------------------------------------------------------------------
 trails = []
 cmaps = ["plasma", "viridis", "cool"]
-marker_colors = ["#c10af3", "#0af35a", "#f3a00a"]
+marker_colors = ["#ecb756", "#92edb2", "#c95ee6"]
 for pos, cmap, mcol in zip(trajectories, cmaps, marker_colors):
     t = Trail(
         pos, scene,
-        trail_len=400,
+        trail_len=600,
         cmap=cmap,
+        line_thickness=4,
         marker_color=mcol,
         marker="circle",
-        marker_size=5,
-        cloud=False,
-        cloud_alpha=0
+        marker_size=2,
+        cloud=True,
+        cloud_alpha=0.3,
+        cloud_brightness=0.3,
+        cloud_size=0.2,
     )
     trails.append(t)
 
@@ -91,7 +94,7 @@ for pos, cmap, mcol in zip(trajectories, cmaps, marker_colors):
 # Controllers and overlays
 # ---------------------------------------------------------------------------
 camera = gfx.PerspectiveCamera(70)
-camera.show_object(scene)
+camera.show_object(scene, view_dir=(0, -1, 0))
 fly = gfx.FlyController(camera, register_events=renderer)
 
 playback = PlaybackController(times, register_events=renderer)

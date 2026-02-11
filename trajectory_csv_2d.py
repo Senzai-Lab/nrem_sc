@@ -20,6 +20,7 @@ import pandas as pd
 from src.playback import PlaybackController
 from src.timetext import TimeText
 from src.trail import Trail
+from src.axes import DynamicAxes
 
 # ---------------------------------------------------------------------------
 # Load Data
@@ -33,10 +34,11 @@ cage_center = (21.292528393641192, 23.629275777896162, 0)
 # ---------------------------------------------------------------------------
 # Scene
 # ---------------------------------------------------------------------------
-canvas = RenderCanvas(max_fps=60)
+canvas = RenderCanvas(size=(1200, 1200), max_fps=60)
 renderer = gfx.renderers.WgpuRenderer(canvas)
 scene = gfx.Scene()
-scene.add(gfx.Background.from_color("#141414"))
+
+scene.add(gfx.Background.from_color("#000"))
 
 # Cage circle
 circle = gfx.Line(
@@ -45,7 +47,7 @@ circle = gfx.Line(
                     cage_radius * np.sin(theta) + cage_center[1],
                     0) for theta in np.linspace(0, 2 * np.pi, 128)],
     ),
-    gfx.LineMaterial(color="#378A8FEB", thickness=5),
+    gfx.LineMaterial(color="#29AFB6EB", thickness=5),
 )
 circle.local.position = cage_center
 scene.add(circle)
@@ -77,6 +79,15 @@ trail = Trail(
 camera = gfx.OrthographicCamera(maintain_aspect=True)
 camera.show_object(scene)
 controller = gfx.PanZoomController(camera, register_events=renderer)
+
+# Dynamic rulers
+dynamic_axes = DynamicAxes(
+    scene, renderer, camera,
+    color="#fff",
+    line_width=3.0,
+    tick_format="0.4g",
+    grid=False,
+)
     
 playback = PlaybackController(t, register_events=renderer)
 overlay = TimeText(viewport=renderer, position="top-left")
@@ -93,6 +104,7 @@ on_playback_update(playback)
 # Animation loop
 # ---------------------------------------------------------------------------
 def anim():
+    dynamic_axes.update()           # recompute rulers to match visible range
     renderer.render(scene, camera)
     overlay.update(playback)
     overlay.render(flush=False)
