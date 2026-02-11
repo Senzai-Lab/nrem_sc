@@ -70,7 +70,7 @@ class PlaybackController:
         loop: bool = True,
         events=None,
         register_events=None,
-        verbose: bool = True,
+        verbose: bool = False,
     ):
         self._times = np.asarray(times, dtype=np.float64)
         self._n_frames = len(self._times)
