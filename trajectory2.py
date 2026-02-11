@@ -26,7 +26,8 @@ from src.timetext import TimeText
 from src.trail import Trail
 
 # Load data
-fname = '/Volumes/fsmresfiles/Basic_Sciences/Phys/SenzaiLab/Tuguldur/points_3d.csv'
+# fname = '/Volumes/fsmresfiles/Basic_Sciences/Phys/SenzaiLab/Tuguldur/points_3d.csv'
+fname = r"R:\Basic_Sciences\Phys\SenzaiLab\Tuguldur\points_3d.csv"
 data = pd.read_csv(fname, skiprows=7)
 t = data['Time (Seconds)'].to_numpy()
 xyz = data[['X.1', 'Y.1', 'Z.1']].to_numpy()
@@ -91,7 +92,8 @@ trail = Trail(
 
 
 camera = gfx.PerspectiveCamera(70)
-camera.show_object(scene)
+# camera.local.position = (xyz[0, 0], xyz[0, 1] + cage_height*4, xyz[0, 2]*1.1)
+camera.show_object(scene, view_dir=(0, -1, 0.5))
 fly = gfx.FlyController(camera, register_events=renderer)
 
 playback = PlaybackController(t, register_events=renderer)
