@@ -53,9 +53,9 @@ class Trail:
     cloud_size : float
         Point size for the static cloud.
     cloud_alpha : float
-        Alpha for the static cloud points (0–1).
+        Alpha for the static cloud points (0-1).
     cloud_brightness : float
-        RGB brightness for the cloud points (0–1).
+        RGB brightness for the cloud points (0-1).
     """
 
     def __init__(

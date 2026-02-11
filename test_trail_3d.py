@@ -1,9 +1,4 @@
 """
-3-D multi-trajectory demo using Trail + PlaybackController.
-
-Three synthetic spirals (different phase / colour) share a single playback
-timeline.  Demonstrates the Trail helper for 3-D scenes.
-
 Camera controls (FlyController):
     Mouse drag              Rotate camera
     W / A / S / D           Move forward / left / back / right
@@ -29,15 +24,13 @@ from src.timetext import TimeText
 from src.trail import Trail
 
 # ---------------------------------------------------------------------------
-# Synthetic data: three 3-D spirals with different phases
+# Three 3-D spirals with different phases
 # ---------------------------------------------------------------------------
 n_frames = 10_000
-dt = 0.016  # ~30 Hz
+dt = 0.016  # ~60 Hz
 times = np.arange(n_frames) * dt
 
 trajectories = []
-cmaps = ["plasma", "viridis", "cool"]
-marker_colors = ["#c10af3", "#0af35a", "#f3a00a"]
 phase_offsets = [0, 2 * np.pi / 3, 4 * np.pi / 3]
 
 for phase in phase_offsets:
@@ -45,7 +38,7 @@ for phase in phase_offsets:
     radius = 50 + 10 * np.sin(times * 0.3 + phase)
     positions = np.column_stack([
         radius * np.cos(theta),
-        times * 1.5 - 100,
+        times * 10 - 500,
         radius * np.sin(theta),
     ]).astype(np.float32)
     trajectories.append(positions)
@@ -53,10 +46,10 @@ for phase in phase_offsets:
 # ---------------------------------------------------------------------------
 # Scene
 # ---------------------------------------------------------------------------
-canvas = RenderCanvas(max_fps=60, title="Trail 3D – Multi-trajectory")
+canvas = RenderCanvas(max_fps=60, title="Trail 3D - Multi-trajectory")
 renderer = gfx.renderers.WgpuRenderer(canvas)
 scene = gfx.Scene()
-scene.add(gfx.Background.from_color("#080808"))
+scene.add(gfx.Background.from_color("#141414"))
 
 # axes = gfx.AxesHelper(size=30, thickness=8)
 # axes.local.y = -110
@@ -79,6 +72,8 @@ scene.add(grid)
 # Trails
 # ---------------------------------------------------------------------------
 trails = []
+cmaps = ["plasma", "viridis", "cool"]
+marker_colors = ["#c10af3", "#0af35a", "#f3a00a"]
 for pos, cmap, mcol in zip(trajectories, cmaps, marker_colors):
     t = Trail(
         pos, scene,
@@ -87,7 +82,7 @@ for pos, cmap, mcol in zip(trajectories, cmaps, marker_colors):
         marker_color=mcol,
         marker="circle",
         marker_size=5,
-        cloud=True,
+        cloud=False,
         cloud_alpha=0
     )
     trails.append(t)
