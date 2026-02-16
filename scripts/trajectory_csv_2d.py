@@ -1,9 +1,4 @@
 """
-2-D multi-trajectory demo using Trail + PlaybackController.
-
-Two Lissajous curves rendered in a flat orthographic view.
-Demonstrates that Trail works identically with (N, 2) positions.
-
 Camera controls (PanZoomController):
     Mouse drag              Pan
     Scroll                  Zoom
@@ -20,97 +15,86 @@ Playback controls (PlaybackController):
 from rendercanvas.auto import RenderCanvas, loop
 import pygfx as gfx
 import numpy as np
+import pandas as pd
 
-from src.playback import PlaybackController
-from src.timetext import TimeText
-from src.trail import Trail
+from nrem_sc.playback import PlaybackController
+from nrem_sc.timetext import TimeText
+from nrem_sc.trail import Trail
+from nrem_sc.axes import DynamicAxes
 
 # ---------------------------------------------------------------------------
-# Synthetic data: two 2-D Lissajous curves
+# Load Data
 # ---------------------------------------------------------------------------
-n_frames = 8_000
-dt = 0.033
-times = np.arange(n_frames) * dt
-
-# Curve A: Lissajous  x = sin(a*t + δ), y = sin(b*t)
-a1, b1, delta1 = 3, 2, np.pi / 4
-pos_a = np.column_stack([
-    200 * np.sin(a1 * times * 0.3 + delta1),
-    200 * np.sin(b1 * times * 0.3),
-]).astype(np.float32)
-
-# Curve B: different ratio
-a2, b2, delta2 = 5, 4, np.pi / 2
-pos_b = np.column_stack([
-    200 * np.sin(a2 * times * 0.3 + delta2),
-    200 * np.sin(b2 * times * 0.3),
-]).astype(np.float32)
-
+fname = r"R:\Basic_Sciences\Phys\SenzaiLab\Tuguldur\260209.csv"
+data = pd.read_csv(fname, skiprows=7)
+t = data['Time (Seconds)'].to_numpy()
+xyz = data[['X.1', 'Z.1']].to_numpy()
+cage_radius = 1.152850207254279e+03
+cage_center = (21.292528393641192, 23.629275777896162, 0)
 # ---------------------------------------------------------------------------
 # Scene
 # ---------------------------------------------------------------------------
-canvas = RenderCanvas(max_fps=60, title="Trail 2D – Multi-trajectory")
+canvas = RenderCanvas(size=(1200, 1200), max_fps=60)
 renderer = gfx.renderers.WgpuRenderer(canvas)
 scene = gfx.Scene()
-scene.add(gfx.Background.from_color("#080808"))
 
-# grid = gfx.Grid(
-#     None,
-#     gfx.GridMaterial(
-#         major_step=100, minor_step=25,
-#         thickness_space="world",
-#         major_thickness=1.5, minor_thickness=0.3,
-#         infinite=True,
-#     ),
-#     orientation="xy",
-# )
-# scene.add(grid)
+scene.add(gfx.Background.from_color("#000"))
+
+# Cage circle
+circle = gfx.Line(
+    gfx.Geometry(
+        positions=[(cage_radius * np.cos(theta) + cage_center[0],
+                    cage_radius * np.sin(theta) + cage_center[1],
+                    0) for theta in np.linspace(0, 2 * np.pi, 128)],
+    ),
+    gfx.LineMaterial(color="#29AFB6EB", thickness=5),
+)
+circle.local.position = cage_center
+scene.add(circle)
+
+# Axes
+axes = gfx.AxesHelper(size=50, thickness=1)
+axes.local.position = cage_center
+scene.add(axes)
 
 # ---------------------------------------------------------------------------
 # Trails (2-D positions → Trail pads z=0 automatically)
 # ---------------------------------------------------------------------------
-trail_a = Trail(
-    pos_a, scene,
+trail = Trail(
+    xyz, scene,
     trail_len=600,
     cmap="plasma",
-    marker_color="#c10af3",
+    marker_color="#0a8ef3",
     marker="diamond",
-    marker_size=10,
+    marker_size=15,
     line_thickness=3,
-    cloud_alpha=0.25,
-    cloud_brightness=0.10,
-    cloud_size=0.8,
+    cloud_alpha=0.1,
+    cloud_brightness=0.60,
+    cloud_size=0.4,
 )
-
-trail_b = Trail(
-    pos_b, scene,
-    trail_len=600,
-    cmap="viridis",
-    marker_color="#0af35a",
-    marker="diamond",
-    marker_size=10,
-    line_thickness=3,
-    cloud_alpha=0.25,
-    cloud_brightness=0.10,
-    cloud_size=0.8,
-)
-
-trails = [trail_a, trail_b]
 
 # ---------------------------------------------------------------------------
 # Controllers and overlays
 # ---------------------------------------------------------------------------
-camera = gfx.OrthographicCamera(600, 600, maintain_aspect=True)
+camera = gfx.OrthographicCamera(maintain_aspect=True)
 camera.show_object(scene)
 controller = gfx.PanZoomController(camera, register_events=renderer)
 
-playback = PlaybackController(times, register_events=renderer)
+# Dynamic rulers
+dynamic_axes = DynamicAxes(
+    scene, renderer, camera,
+    color="#fff",
+    line_width=3.0,
+    tick_format="0.4g",
+    grid=False,
+)
+    
+playback = PlaybackController(t, register_events=renderer)
 overlay = TimeText(viewport=renderer, position="top-left")
 
 
 def on_playback_update(pb: PlaybackController):
-    for trail in trails:
-        trail.update(pb.frame_index, pb.frame_position)
+    trail.update(pb.frame_index, pb.frame_position)
 
 
 playback.add_handler(on_playback_update)
@@ -120,6 +104,7 @@ on_playback_update(playback)
 # Animation loop
 # ---------------------------------------------------------------------------
 def anim():
+    dynamic_axes.update()           # recompute rulers to match visible range
     renderer.render(scene, camera)
     overlay.update(playback)
     overlay.render(flush=False)

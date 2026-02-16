@@ -21,9 +21,9 @@ import numpy as np
 import pynapple as nap
 import pandas as pd
 
-from src.playback import PlaybackController
-from src.timetext import TimeText
-from src.trail import Trail
+from nrem_sc.playback import PlaybackController
+from nrem_sc.timetext import TimeText
+from nrem_sc.trail import Trail
 
 # Load data
 # fname = '/Volumes/fsmresfiles/Basic_Sciences/Phys/SenzaiLab/Tuguldur/points_3d.csv'

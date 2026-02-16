@@ -112,7 +112,7 @@ class Trail:
                 marker=marker,
                 size=marker_size,
                 color=marker_color,
-                size_space="world",
+                size_space="screen",
             ),
         )
         scene.add(self.marker)
@@ -179,21 +179,34 @@ class Trail:
         self.marker.geometry.positions.data[0] = mpos
         self.marker.geometry.positions.update_full()
 
-        # --- trail: colormap + alpha fade
+        # --- trail: colormap + alpha fade (with interpolated tip)
         tpos = self.line.geometry.positions.data
         tcol = self.line.geometry.colors.data
 
-        start = max(0, idx - self._trail_len + 1)
-        n = idx + 1 - start
+        # If between frames, append the interpolated position as a tip
+        frac = fp - idx
+        has_tip = frac > 1e-7 and idx < n_frames - 1
 
-        if n > 0:
-            tpos[:n] = pos[start : idx + 1]
-            t_lin = np.linspace(0.0, 1.0, n)
+        # Reserve one slot for the tip so total never exceeds trail_len
+        max_hist = self._trail_len - 1 if has_tip else self._trail_len
+        start = max(0, idx - max_hist + 1)
+        n_hist = idx + 1 - start
+
+        if n_hist > 0:
+            tpos[:n_hist] = pos[start : idx + 1]
+
+        total = n_hist
+        if has_tip:
+            tpos[total] = mpos
+            total += 1
+
+        if total > 0:
+            t_lin = np.linspace(0.0, 1.0, total)
             cmap_colors = self._cmap(t_lin).astype(np.float32)
             cmap_colors[:, 3] = t_lin ** self._fade_power
-            tcol[:n] = cmap_colors
+            tcol[:total] = cmap_colors
 
-        tpos[n:] = np.nan
+        tpos[total:] = np.nan
         self.line.geometry.positions.update_full()
         self.line.geometry.colors.update_full()
 

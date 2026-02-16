@@ -90,6 +90,7 @@ class PlaybackController:
 
         # Wall-clock tracking
         self._last_tick_time: float = time.perf_counter()
+        self._in_tick: bool = False  # re-entrancy guard
 
         # Callbacks
         self._handlers: List[Callable] = []
@@ -100,6 +101,12 @@ class PlaybackController:
 
         # Viewport reference for request_draw
         self._viewport: Optional[Viewport] = None
+
+        # pynaviz ControllerGroup compatibility
+        self._controller_id: Optional[int] = None
+        self.enabled: bool = True
+        self.renderer_handle_event: Optional[Callable] = None
+
         if register_events is not None:
             self.register_events(register_events)
 
@@ -172,6 +179,32 @@ class PlaybackController:
     def loop(self, value: bool):
         self._loop = bool(value)
 
+    @property
+    def controller_id(self) -> Optional[int]:
+        """Unique id used by pynaviz's ControllerGroup."""
+        return self._controller_id
+
+    @controller_id.setter
+    def controller_id(self, value: int):
+        if self._controller_id is not None:
+            raise ValueError("Controller id can be set only once!")
+        self._controller_id = value
+
+    @property
+    def controller(self) -> "PlaybackController":
+        """Return *self* so ControllerGroup.add() finds ``.controller``."""
+        return self
+
+    @property
+    def renderer(self):
+        """The pygfx renderer (or ``None`` if events not registered).
+
+        Exposed so ControllerGroup.add() can find ``.renderer``.
+        """
+        if self._viewport is not None:
+            return self._viewport.renderer
+        return None
+
     # ------------------------------------------------------------------
     # Event registration
     # ------------------------------------------------------------------
@@ -185,6 +218,8 @@ class PlaybackController:
         renderer.add_event_handler(self._on_before_render, "before_render")
         renderer.add_event_handler(self._on_pointer_down, "pointer_down")
         renderer.add_event_handler(self._on_wheel, "wheel")
+        # Expose for pynaviz ControllerGroup
+        self.renderer_handle_event = renderer.handle_event
 
     def add_handler(self, callback: Callable):
         """Add a callback invoked on every time change.
@@ -238,7 +273,7 @@ class PlaybackController:
         """Jump to the last frame."""
         self._set_frame_position(float(self._n_frames - 1))
 
-    def go_to_time(self, target_time: float):
+    def go_to(self, target_time: float):
         """Jump to a specific data time (seconds)."""
         target_time = float(np.clip(target_time, self._times[0], self._times[-1]))
         self._set_frame_position(self._time_to_frame(target_time))
@@ -247,13 +282,44 @@ class PlaybackController:
         """Jump to a specific frame index."""
         self._set_frame_position(float(frame))
 
+    # ------------------------------------------------------------------
+    # pynaviz ControllerGroup interface
+    # ------------------------------------------------------------------
+
+    def sync(self, event):
+        """Synchronize to a time from pynaviz's ControllerGroup.
+
+        Parameters
+        ----------
+        event : SyncEvent
+            Event containing ``current_time`` or ``cam_state`` with position.
+        """
+        if not self.enabled:
+            return
+
+        if hasattr(event, 'kwargs'):
+            if "cam_state" in event.kwargs:
+                new_time = event.kwargs["cam_state"]["position"][0]
+            elif "current_time" in event.kwargs:
+                new_time = event.kwargs["current_time"]
+            else:
+                return
+        else:
+            return
+
+        self.go_to(new_time)
+
+    def advance(self, delta: float = 0.025):
+        """Advance current time by *delta* seconds (pynaviz interface)."""
+        self.go_to(self._current_time + delta)
+
     def jump_next_event(self):
         """Jump to the next event marker (no-op if none defined)."""
         if self._events is None or len(self._events) == 0:
             return
         idx = np.searchsorted(self._events, self._current_time, side="right")
         if idx < len(self._events):
-            self.go_to_time(float(self._events[idx]))
+            self.go_to(float(self._events[idx]))
 
     def jump_prev_event(self):
         """Jump to the previous event marker (no-op if none defined)."""
@@ -261,7 +327,7 @@ class PlaybackController:
             return
         idx = np.searchsorted(self._events, self._current_time, side="left") - 1
         if idx >= 0:
-            self.go_to_time(float(self._events[idx]))
+            self.go_to(float(self._events[idx]))
 
     # ------------------------------------------------------------------
     # Tick (time advancement)
@@ -273,6 +339,15 @@ class PlaybackController:
         Called automatically every frame if ``register_events`` was used.
         Can also be called manually for custom animation loops.
         """
+        if self._in_tick:
+            return
+        self._in_tick = True
+        try:
+            self._tick_inner()
+        finally:
+            self._in_tick = False
+
+    def _tick_inner(self):
         now = time.perf_counter()
         if not self._playing:
             # Continuous stepping while step keys are held down
@@ -321,6 +396,8 @@ class PlaybackController:
 
         self._frame_position = frame_pos
         self._current_time = self._frame_to_time(frame_pos)
+        # Reset wall-clock so the next tick() doesn't accumulate stale dt
+        self._last_tick_time = time.perf_counter()
         self._fire_handlers()
 
     def _frame_to_time(self, frame_pos: float) -> float:
