@@ -1,4 +1,5 @@
 from nrem_sc.constants import PROCESSED_DATA_PATH
+from nrem_sc.utils import circ_bin_average
 
 import numpy as np
 import pynapple as nap
@@ -14,7 +15,7 @@ from replay_trajectory_classification import (
 )
 
 unit_id = '116b'
-STATE_PROB = 0.99
+STATE_PROB = 0.9
 STATE_NAMES = ["continuous", "fragmented", "stationary"]
 
 def get_environment(num_nodes: int = 360, place_bin_size: float = 1.0):
@@ -53,9 +54,7 @@ def fit_classifier(
         hd_spikes.count(bin_size=bin_size_ms, ep=train_ep, time_units="ms")
         .astype(np.bool_)
     )
-    angle = hd_angle.bin_average(
-        bin_size=bin_size_ms, ep=train_ep, time_units="ms"
-    ).to_numpy()
+    angle = circ_bin_average(tsd=hd_angle, bin_size=bin_size_ms, ep=train_ep, time_units="ms").to_numpy()
 
     # Build classifier
     environment = get_environment(place_bin_size=place_bin_size)
@@ -84,7 +83,7 @@ if __name__ == "__main__":
 
     classifier = fit_classifier(hd_spikes, hd_angle, hd_angle.time_support)
 
-    t_window = 2000
+    t_window = 1000
     SAVE_DIR = PROCESSED_DATA_PATH / unit_id / "pre_ttx"
     SAVE_DIR.mkdir(parents=True, exist_ok=True)
     

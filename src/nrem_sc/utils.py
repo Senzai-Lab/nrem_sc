@@ -140,7 +140,8 @@ def plot_intervals(
     column: str,
     min_dur: float = 2,
     palette: str = 'deep',
-    figsize: Tuple[float, float] = (14, 2.5)
+    figsize: Tuple[float, float] = (14, 2.5),
+    ax: Optional[matplotlib.axes.Axes] = None
 ) -> Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
     """
     Plot IntervalSet as horizontal bars.
@@ -157,6 +158,8 @@ def plot_intervals(
         Color palette for states (default: 'deep').
     figsize : tuple, optional
         Figure size (default: (14, 2.5)).
+    ax : matplotlib.axes.Axes, optional
+        Axes object to plot on. If None, creates a new figure.
     
     Returns
     -------
@@ -173,7 +176,11 @@ def plot_intervals(
     fig_height = figsize[1]
     bar_height = min(0.8, fig_height / (n_states + 1))  # Leave some padding
     
-    fig, ax = plt.subplots(figsize=figsize)
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig = ax.figure
+
     for i, state in enumerate(states):
         epochs = intervals[intervals[column] == state]
         xranges = np.column_stack([epochs.start, epochs.end - epochs.start])
@@ -184,7 +191,10 @@ def plot_intervals(
     ax.set_xlabel('Time (s)')
     ax.set_xlim(intervals.start.min(), intervals.end.max())
     ax.spines[['top', 'right']].set_visible(False)
-    plt.tight_layout()
+    
+    if ax is None:
+        plt.tight_layout()
+        
     return fig, ax
 
 
@@ -462,3 +472,34 @@ def plot_all_von_mises_fits(
             plt.close(fig)
     
     return figures
+
+
+def circ_bin_average(tsd, is_degrees=True, **bin_kwargs):
+    """
+    Computes the binned average of circular data using Cartesian coordinates.
+    """
+    # 1. Convert to radians if necessary
+    angles = np.deg2rad(tsd.values) if is_degrees else tsd.values
+    
+    # 2. Convert to Cartesian coordinates
+    x = np.cos(angles)
+    y = np.sin(angles)
+    
+    # Create temporary Tsd objects for x and y
+    x_tsd = nap.Tsd(t=tsd.times(), d=x, time_support=tsd.time_support)
+    y_tsd = nap.Tsd(t=tsd.times(), d=y, time_support=tsd.time_support)
+    
+    # 3. Bin average the Cartesian components
+    x_binned = x_tsd.bin_average(**bin_kwargs)
+    y_binned = y_tsd.bin_average(**bin_kwargs)
+    
+    # 4. Compute mean angle using arctan2
+    mean_angles = np.arctan2(y_binned.values, x_binned.values)
+    
+    # 5. Convert back to degrees and wrap to [0, 360)
+    if is_degrees:
+        mean_angles = np.rad2deg(mean_angles) % 360
+    else:
+        mean_angles = mean_angles % (2 * np.pi)
+        
+    return nap.Tsd(t=x_binned.times(), d=mean_angles, time_support=x_binned.time_support)

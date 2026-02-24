@@ -5,6 +5,7 @@ import numpy as np
 import pynapple as nap
 
 from nrem_sc.constants import PROCESSED_DATA_PATH, INTERIM_DATA_PATH
+from nrem_sc.utils import circ_bin_average
 
 from replay_trajectory_classification import (
     SortedSpikesClassifier,
@@ -15,6 +16,7 @@ from replay_trajectory_classification import (
     DiagonalDiscrete,
     make_track_graph,
 )
+
 
 
 def get_environment(num_nodes: int = 360, place_bin_size: float = 1.0):
@@ -53,7 +55,7 @@ def build_classifier(environment: Environment) -> SortedSpikesClassifier:
     return SortedSpikesClassifier(
         environments=environment,
         continuous_transition_types=continuous_transition_types,
-        discrete_transition_type=DiagonalDiscrete(0.99),
+        discrete_transition_type=DiagonalDiscrete(0.9),
     )
 
 
@@ -80,9 +82,7 @@ def fit_classifier(
         hd_spikes.count(bin_size=bin_size_ms, ep=train_ep, time_units="ms")
         .astype(np.bool_)
     )
-    angle = hd_angle.bin_average(
-        bin_size=bin_size_ms, ep=train_ep, time_units="ms"
-    ).to_numpy()
+    angle = circ_bin_average(tsd=hd_angle, bin_size=bin_size_ms, ep=train_ep, time_units="ms").to_numpy()
 
     environment = get_environment(place_bin_size=place_bin_size)
     classifier = build_classifier(environment)

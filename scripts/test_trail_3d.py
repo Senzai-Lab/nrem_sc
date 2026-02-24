@@ -82,17 +82,17 @@ scene.add(gfx.Background.from_color("#141414"))
 # # axes.local.y = -110
 # scene.add(axes)
 
-# grid = gfx.Grid(
-#     None,
-#     gfx.GridMaterial(
-#         major_step=100, minor_step=10,
-#         thickness_space="screen",
-#         major_thickness=0.5, minor_thickness=0.1,
-#         infinite=True,
-#     ),
-#     orientation="xy",
-# )
-# scene.add(grid)
+grid = gfx.Grid(
+    None,
+    gfx.GridMaterial(
+        major_step=100, minor_step=10,
+        thickness_space="screen",
+        major_thickness=0.5, minor_thickness=0.1,
+        infinite=True,
+    ),
+    orientation="xy",
+)
+scene.add(grid)
 
 # ---------------------------------------------------------------------------
 # Trails
