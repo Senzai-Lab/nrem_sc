@@ -1,9 +1,9 @@
 from nrem_sc.constants import PROCESSED_DATA_PATH
-from nrem_sc.legend import add_legend
-from nrem_sc.playback import PlaybackController
-from nrem_sc.relative_time import apply_relative_time
-from nrem_sc.timetext import TimeText
-from nrem_sc.trail import Trail
+from trajectory_viewer import add_legend
+from trajectory_viewer import PlaybackController
+from trajectory_viewer import apply_relative_time
+from trajectory_viewer import TimeText
+from trajectory_viewer import Trail
 
 import numpy as np
 import pynapple as nap

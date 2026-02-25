@@ -11,9 +11,9 @@ from pynaviz.controller_group import ControllerGroup
 from sklearn import manifold
 
 from nrem_sc.constants import PROCESSED_DATA_PATH
-from nrem_sc.playback import PlaybackController
-from nrem_sc.timetext import TimeText
-from nrem_sc.trail import Trail
+from trajectory_viewer import PlaybackController
+from trajectory_viewer import TimeText
+from trajectory_viewer import Trail
 
 # Register HUSL as a matplotlib colormap so pynaviz can use it
 husl_cmap = ListedColormap(sns.color_palette("husl", 256), name="husl")

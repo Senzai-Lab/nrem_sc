@@ -3,9 +3,9 @@ import pynaviz as viz
 from pynaviz.controller_group import ControllerGroup
 
 # Import the 3D viewer
-from manifold_viewer_3d_fps import TrajectoryViewer3D
+from trajectory_viewer import TrajectoryViewer3D
 # Import the controller from the 2D viewer file (reusable sync logic)
-from trajectoryViewer import TrajectoryController
+from trajectory_viewer import TrajectoryController
 
 from src.constants import INTERIM_DATA_PATH, PROCESSED_DATA_PATH
 import numpy as np

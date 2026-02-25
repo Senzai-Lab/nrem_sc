@@ -1,5 +1,5 @@
 from nrem_sc.constants import PROCESSED_DATA_PATH
-from nrem_sc.legend import add_legend
+from trajectory_viewer import add_legend
 from nrem_sc.utils import circ_bin_average
 
 import pynapple as nap
