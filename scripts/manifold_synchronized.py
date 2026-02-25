@@ -110,7 +110,7 @@ pan_zoom = gfx.PanZoomController(camera, register_events=renderer)
 # === SYNCHRONIZE WITH CONTROLLERGROUP ===
 cg = ControllerGroup(
     plots=[spike_plot, sleep_plot, decoded_hd_plot, state_prob_plot],
-    interval=(window['start'], window['end']),
+    interval=(window['start'].item(), window['end'].item()),
 )
 
 # PlaybackController exposes .controller and .renderer for ControllerGroup

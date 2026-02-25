@@ -21,8 +21,8 @@ import pygfx as gfx
 import numpy as np
 from matplotlib import colormaps
 
-from src.playback import PlaybackController
-from src.timetext import TimeText
+from nrem_sc.playback import PlaybackController
+from nrem_sc.timetext import TimeText
 
 # ---------------------------------------------------------------------------
 # Synthetic data: 3-D spiral with varying radius

@@ -68,3 +68,35 @@ shank1 = unit_idx(1:98);
 shank2 = unit_idx(99:168);
 shank3 = unit_idx(169:285);
 shank4 = unit_idx(286:end);
+
+
+% Unit 85b HD indices
+data_dir = "D:\common_datasets\ucsf\";
+raw_data_dir = data_dir + "raw\85b\";
+processed_data_dir = data_dir + "processed\85b\";
+
+% Extract HD indices
+load(raw_data_dir + 'depthsort_parameter_1.mat');
+shank1_len = length(depth); % 17
+
+load(raw_data_dir + 'depthsort_parameter_2.mat');
+shank2_len = length(depth); % 80
+% first 17 units (shank1)
+% later 80 units (shank2)
+
+filename = 'YutaTest85b_BayesianDecoding_training.mat';
+load(raw_data_dir + filename);
+shank1 = unit_idx(1:shank1_len);
+shank2 = unit_idx(shank1_len+1:end);
+
+save(processed_data_dir + 'shank1_hd_idx', 'shank1');
+save(processed_data_dir + 'shank2_hd_idx', 'shank2');
+
+
+% Sleep state
+load(raw_data_dir + 'YutaTest85b.SleepState.states.mat')
+wake = SleepState.ints.WAKEstate;
+nrem = SleepState.ints.NREMstate;
+rem = SleepState.ints.REMstate;
+qwake = SleepState.ints.QuietWakestate;
+
