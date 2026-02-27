@@ -18,9 +18,17 @@ dependencies = [
     "imageio>=2.37.2",
     "cmap>=0.7.1",
     "pygfx>=0.15.3",
-    "pandas>=2.3.3",
+    "pandas<3.0",
     "replay-trajectory-classification>=1.4.1",
     "cupy-cuda12x>=13.6.0",
     "fastplotlib>=0.6.1",
     "pycircstat2>=0.1.15",
 ]
+
+[dependency-groups]
+dev = [
+    "nrem-sc",
+]
+
+[tool.uv.sources]
+nrem-sc = { workspace = true }

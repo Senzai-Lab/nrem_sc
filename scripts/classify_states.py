@@ -15,7 +15,7 @@ from replay_trajectory_classification import (
 )
 
 unit_id = '116b'
-STATE_PROB = 0.9
+STATE_PROB = 0.9975
 STATE_NAMES = ["continuous", "fragmented", "stationary"]
 
 def get_environment(num_nodes: int = 360, place_bin_size: float = 1.0):
@@ -46,7 +46,7 @@ def fit_classifier(
     hd_spikes,
     hd_angle,
     train_ep: nap.IntervalSet,
-    bin_size_ms: int = 2,
+    bin_size_ms: int = 1,
     place_bin_size: float = 1.0,
 ):
     """Fit the classifier on wake training data and return it."""
@@ -84,10 +84,12 @@ if __name__ == "__main__":
     classifier = fit_classifier(hd_spikes, hd_angle, hd_angle.time_support)
  
     t_window = 1000
+    
+    # --- Pre-TTX decoding ---
     SAVE_DIR = PROCESSED_DATA_PATH / unit_id / "pre_ttx"
     SAVE_DIR.mkdir(parents=True, exist_ok=True)
-    
     session = sessions[sessions["label"] == "homecage"][0]
+    # ---
     start, end = session["start"].item(), session["end"].item()
     print(f"Homecage session: {start} - {end}")
     starts = np.arange(start, end, t_window)
@@ -99,7 +101,7 @@ if __name__ == "__main__":
         
         # Decode states in this interval
         epoch = nap.IntervalSet(start=[t_a], end=[t_b])
-        bin_size_ms = 2
+        bin_size_ms = 1
 
         spike_counts = (
             hd_spikes.restrict(epoch)
@@ -120,5 +122,5 @@ if __name__ == "__main__":
         combined = np.column_stack([prob_state, pos_max])
 
         result_df = nap.TsdFrame(t=decoded["time"].to_numpy(), d=combined, columns=STATE_NAMES + ["position"],)
-        result_df.save(SAVE_DIR / f"decoded{t_a}_{t_b}.npz")        
+        result_df.save(SAVE_DIR / f"decoded{int(t_a)}_{int(t_b)}.npz")        
         
