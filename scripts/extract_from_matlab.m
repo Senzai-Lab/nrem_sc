@@ -100,3 +100,64 @@ nrem = SleepState.ints.NREMstate;
 rem = SleepState.ints.REMstate;
 qwake = SleepState.ints.QuietWakestate;
 
+% Merge info
+load(raw_data_dir + 'YutaTest85b_merge_info.mat');
+session_epochs = merge_info.sessionperiod;
+save(processed_data_dir + 'session_epochs', 'session_epochs');
+
+% 83b
+data_dir = "D:\common_datasets\ucsf\";
+raw_data_dir = data_dir + "raw\83b\";
+processed_data_dir = data_dir + "processed\83b\";
+
+filename = 'YutaTest83b_BayesianDecoding_training.mat';
+load(raw_data_dir + filename);
+shank1 = unit_idx(1:shank1_len);
+shank2 = unit_idx(shank1_len+1:end);
+save(processed_data_dir + 'unit_idx', 'unit_idx');
+
+% Sleep state
+load(raw_data_dir + 'YutaTest83b.SleepState.states.mat')
+wake = SleepState.ints.WAKEstate;
+nrem = SleepState.ints.NREMstate;
+rem = SleepState.ints.REMstate;
+qwake = SleepState.ints.quietwakestate;
+
+save(processed_data_dir + "wake.mat", 'wake');
+save(processed_data_dir + "nrem.mat", 'nrem');
+save(processed_data_dir + "rem.mat", 'rem');
+save(processed_data_dir + "qwake.mat", 'qwake');
+
+% Merge info
+load(raw_data_dir + 'YutaTest83b_merge_info.mat');
+session_epochs = merge_info.sessionperiod;
+save(processed_data_dir + 'session_epochs', 'session_epochs');
+
+% 119b
+data_dir = "D:\common_datasets\ucsf\";
+raw_data_dir = data_dir + "raw\119b\";
+processed_data_dir = data_dir + "processed\119b\";
+
+d1 = load("depthsort_parameter_1.mat").depth;
+d2 = load("depthsort_parameter_2.mat").depth;
+d3 = load("depthsort_parameter_3.mat").depth;
+d4 = load("depthsort_parameter_4.mat").depth;
+
+filename = 'YutaTest119b_BayesianDecoding_training.mat';
+load(raw_data_dir + filename);
+save(processed_data_dir + 'unit_idx', 'unit_idx');
+
+% Sleep state
+load(raw_data_dir + 'YutaTest119b.SleepState.states.mat')
+wake = SleepState.ints.WAKEstate;
+nrem = SleepState.ints.NREMstate;
+rem = SleepState.ints.REMstate;
+
+save(processed_data_dir + "wake.mat", 'wake');
+save(processed_data_dir + "nrem.mat", 'nrem');
+save(processed_data_dir + "rem.mat", 'rem');
+
+% Merge info
+load(raw_data_dir + 'YutaTest119b_merge_info.mat');
+session_epochs = merge_info.sessionperiod;
+save(processed_data_dir + 'session_epochs', 'session_epochs');

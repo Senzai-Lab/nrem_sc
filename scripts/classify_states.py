@@ -83,7 +83,7 @@ if __name__ == "__main__":
 
     classifier = fit_classifier(hd_spikes, hd_angle, hd_angle.time_support)
  
-    t_window = 1000
+    t_window = 500
     
     # --- Pre-TTX decoding ---
     SAVE_DIR = PROCESSED_DATA_PATH / unit_id / "pre_ttx"
