@@ -114,7 +114,7 @@ def analyze(data_path: str, save_path:str ):
 
     for i, condition in enumerate(["pre_ttx", "post_ttx"]):
         print(f"Decoding {condition}...")
-        session = sessions[sessions["label"] == condition][i] # 0->pre_ttx, 1->post_ttx
+        session = sessions[sessions["label"] == 'homecage'][i] # 0->pre_ttx, 1->post_ttx
         start, end = session["start"].item(), session["end"].item()
         print(f"Homecage session: {start} - {end}")
 
