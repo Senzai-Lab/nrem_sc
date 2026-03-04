@@ -1,4 +1,4 @@
-import argparse
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -18,9 +18,6 @@ STATE_PROB = 0.99
 STATE_NAMES = ["continuous", "fragmented", "stationary"]
 BIN_SIZE_MS = 1
 DECODING_WINDOW = 1000
-
-DATA_PATH = Path("")
-SAVE_PATH = Path("")
 UNIT_IDS = ['83b', '85b', '116b', '119b']
 
 def circ_bin_average(tsd, is_degrees=True, **bin_kwargs):
@@ -102,9 +99,9 @@ def fit_classifier(
     return classifier
 
 
-def analyze(unit_id):
-    data_path = DATA_PATH / unit_id
-    save_path = SAVE_PATH / unit_id
+def analyze(data_path: str, save_path:str ):
+    data_path = Path(data_path)
+    save_path = Path(save_path)
     save_path.mkdir(parents=True, exist_ok=True)
 
     # Load data
@@ -152,9 +149,10 @@ def analyze(unit_id):
             decoded.acausal_posterior.to_netcdf(out_file)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Decode states for a single unit.")
-    parser.add_argument("unit_id", type=str, help="Unit ID to process (83b, 85b, 116b, 119b)")
-    args = parser.parse_args()
-
-    print(f"Processing unit: {args.unit_id}")
-    analyze(args.unit_id)
+    if len(sys.argv) != 3:
+        print("Usage: python decode_hpc.py input_path output_path")
+        sys.exit(1)
+    
+    print(f"Data path: {sys.argv[1]}")
+    print(f"Save path: {sys.argv[2]}")
+    analyze(sys.argv[1], sys.argv[2])
