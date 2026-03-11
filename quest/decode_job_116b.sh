@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --account=p33146
-#SBATCH --partition=normal
-#SBATCH --time=20:00:00
+#SBATCH --partition=short
+#SBATCH --time=4:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --mem=64G
@@ -12,12 +12,10 @@
 #SBATCH --mail-type=END
 #SBATCH --mail-user=tuguldur.gerelmaa@northwestern.edu
 
-UNIT_IDS=(83b 85b 116b 119b)
-UNIT=${UNIT_IDS[$SLURM_ARRAY_TASK_ID]}
 DATA_PATH='/projects/p33146/Tuguldur/nrem_sc/processed'
 SAVE_PATH='/scratch/iii9781/nrem_sc'
 
-echo "=== Job array task $SLURM_ARRAY_TASK_ID  |  Unit: $UNIT ==="
+echo "=== Job array task $SLURM_ARRAY_TASK_ID  |  Unit: 116b ==="
 date
 
 # Load environment
@@ -25,7 +23,7 @@ module purge all
 module load mamba/24.3.0
 source activate ~/.conda/envs/decoding
 
-python ~/nrem_sc/decode_hpc.py "${DATA_PATH}/${UNIT}" "${SAVE_PATH}/${UNIT}"
+python ~/nrem_sc/decode_hpc.py "${DATA_PATH}/116b" "${SAVE_PATH}/116b" "$SLURM_ARRAY_TASK_ID"
 
-echo "=== Finished unit $UNIT ==="
+echo "=== Finished unit 116b ==="
 date

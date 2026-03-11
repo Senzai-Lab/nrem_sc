@@ -17,8 +17,9 @@ from replay_trajectory_classification import (
 STATE_PROB = 0.99
 STATE_NAMES = ["continuous", "fragmented", "stationary"]
 BIN_SIZE_MS = 1
-DECODING_WINDOW = 1000
+DECODING_WINDOW = 500
 UNIT_IDS = ['83b', '85b', '116b', '119b']
+TOTAL_TASKS = 4
 
 def circ_bin_average(tsd, is_degrees=True, **bin_kwargs):
     """
@@ -99,7 +100,10 @@ def fit_classifier(
     return classifier
 
 
-def analyze(data_path: str, save_path:str ):
+def analyze(data_path: str, save_path:str, task_id:int = None):
+    print(f"Data path: {data_path}")
+    print(f"Save path: {save_path}")
+    print(f"Task ID:   {task_id}")
     data_path = Path(data_path)
     save_path = Path(save_path)
     save_path.mkdir(parents=True, exist_ok=True)
@@ -126,15 +130,20 @@ def analyze(data_path: str, save_path:str ):
         )
 
         starts = np.arange(start, end, DECODING_WINDOW)
-        for t_a in starts:
-            t_b = min(t_a + DECODING_WINDOW, end)
-            
-            out_file = save_path / f"decoded_{condition}_{int(t_a)}_{int(t_b)}.nc"
-            if out_file.exists():
-                print(f"Checkpoint: skipping existing {out_file.name}")
+        for current_task, t_a in enumerate(starts):
+            if (current_task % TOTAL_TASKS) != task_id:
+                print("Not my task. Skipping...")
                 continue
 
+            t_b = min(t_a + DECODING_WINDOW, end)
+            
+            out_path = save_path / f"{condition}_{int(t_a)}_{int(t_b)}"
+            out_path.mkdir(parents=True, exist_ok=True)
             print(f"Decoding interval: {t_a} - {t_b} ({t_b - t_a:.2f} s)")
+            
+            if len(list(out_path.glob("*.npz"))) == 2:
+                print("Skipping...")
+                continue            
             
             # Decode states in this interval
             epoch = nap.IntervalSet(start=t_a, end=t_b)
@@ -145,14 +154,25 @@ def analyze(data_path: str, save_path:str ):
                 time=spike_counts.times(),
                 state_names=STATE_NAMES,
             )
+            # to_netcsdf gives int32 overflow errors for some reason
+            # decoded.acausal_posterior.to_netcdf(out_file)
 
-            decoded.acausal_posterior.to_netcdf(out_file)
+            # Save as Pynapple objects
+            states = nap.TsdFrame(t=decoded['time'].to_numpy(),
+                                  d=decoded.acausal_posterior.sum(dim='position'), # (N, 3) array
+                                  columns=decoded.state)
+
+            position = nap.TsdFrame(t=decoded['time'].to_numpy(),
+                                    d=decoded.acausal_posterior.sum(dim='state').to_numpy(),
+                                    metadata={'position_bins': decoded.position})
+
+            for data, fname in zip([states, position], ['states', 'position']):
+                out_file = out_path / f'{fname}.npz'
+                data.save(out_file)
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Usage: python decode_hpc.py input_path output_path")
+    if len(sys.argv) != 4:
+        print("Usage: python decode_hpc.py input_path output_path task_id")
         sys.exit(1)
-    
-    print(f"Data path: {sys.argv[1]}")
-    print(f"Save path: {sys.argv[2]}")
-    analyze(sys.argv[1], sys.argv[2])
+
+    analyze(sys.argv[1], sys.argv[2], int(sys.argv[3]))
