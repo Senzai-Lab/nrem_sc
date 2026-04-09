@@ -1,4 +1,3 @@
-% All data extracted from Mouse 107b
 % Extracting sleep states into separate arrays
 data_dir = "D:\common_datasets\ucsf\";
 raw_data_dir = data_dir + "raw\107b\";
@@ -29,7 +28,7 @@ save(processed_data_dir + "neck_time", 't_new', '-double');
 
 % Extracting turn cells from SC (shank 3)
 filename = 'MetaAnalysis_20241220-metaUnitFeature.mat';
-load(raw_data_dir + filename);
+load("D:\common_datasets\ucsf\raw\" + filename);
 
 mouseID = metaUnitFeature.mouseID==6; % Mouse 107b
 turnModCells = metaUnitFeature.SC_TurnModCell==1; % Select turn modulated cells
@@ -45,7 +44,7 @@ load(raw_data_dir + filename);
 
 mouseID = metaUnitFeature.mouseID==6; % Mouse 107b
 hd_cells= metaUnitFeature.HDCidx==1; % Select head direction tuned cells
-shankID = (metaUnitFeature.shankID==1) | (metaUnitFeature.shankID==2); % ADN
+shankID = (metaUnitFeature.shankID==1) | (metaUnitFeature.shankID==2); %     ADN
 hd_ids = metaUnitFeature.unitIDshank(mouseID & hd_cells & shankID);
 
 save(processed_data_dir + "hd_ids", "hd_ids");
